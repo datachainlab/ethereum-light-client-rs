@@ -1,0 +1,174 @@
+use crate::chain::Network;
+use crate::cli::Opts;
+use crate::{errors::Error, state::LightClientStore};
+use ethereum_consensus::config::Config;
+use ethereum_consensus::context::ChainContext;
+use ethereum_consensus::sync_protocol::LightClientBootstrap;
+use log::*;
+use rocksdb::DB;
+
+#[derive(Debug)]
+pub struct Context<
+    const MAX_PROPOSER_SLASHINGS: usize,
+    const MAX_VALIDATORS_PER_COMMITTEE: usize,
+    const MAX_ATTESTER_SLASHINGS: usize,
+    const MAX_ATTESTATIONS: usize,
+    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+    const MAX_DEPOSITS: usize,
+    const MAX_VOLUNTARY_EXITS: usize,
+    const BYTES_PER_LOGS_BLOOM: usize,
+    const MAX_EXTRA_DATA_BYTES: usize,
+    const MAX_BYTES_PER_TRANSACTION: usize,
+    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+    const SYNC_COMMITTEE_SIZE: usize,
+> {
+    pub(crate) config: Config,
+    pub(crate) beacon_endpoint: String,
+    pub(crate) network: Network,
+    db: DB,
+}
+
+impl<
+        const MAX_PROPOSER_SLASHINGS: usize,
+        const MAX_VALIDATORS_PER_COMMITTEE: usize,
+        const MAX_ATTESTER_SLASHINGS: usize,
+        const MAX_ATTESTATIONS: usize,
+        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+        const MAX_DEPOSITS: usize,
+        const MAX_VOLUNTARY_EXITS: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+        const MAX_BYTES_PER_TRANSACTION: usize,
+        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const SYNC_COMMITTEE_SIZE: usize,
+    >
+    Context<
+        MAX_PROPOSER_SLASHINGS,
+        MAX_VALIDATORS_PER_COMMITTEE,
+        MAX_ATTESTER_SLASHINGS,
+        MAX_ATTESTATIONS,
+        DEPOSIT_CONTRACT_TREE_DEPTH,
+        MAX_DEPOSITS,
+        MAX_VOLUNTARY_EXITS,
+        BYTES_PER_LOGS_BLOOM,
+        MAX_EXTRA_DATA_BYTES,
+        MAX_BYTES_PER_TRANSACTION,
+        MAX_TRANSACTIONS_PER_PAYLOAD,
+        SYNC_COMMITTEE_SIZE,
+    >
+{
+    pub fn build(network: Network, opts: Opts) -> Result<Self, Error> {
+        let home_dir = opts.home_dir();
+        if !home_dir.exists() {
+            info!("directory {:?} is created", home_dir);
+            std::fs::create_dir(&home_dir)?;
+        }
+        Ok(Self {
+            config: network.config(),
+            db: DB::open_default(home_dir.join("store"))?,
+            beacon_endpoint: opts.beacon_endpoint,
+            network: Network::from_str(&opts.network)?,
+        })
+    }
+
+    pub fn beacon_endpoint(&self) -> &str {
+        &self.beacon_endpoint
+    }
+
+    pub fn network(&self) -> Network {
+        self.network.clone()
+    }
+
+    /// Store accessors
+
+    pub fn get_bootstrap(&self) -> Result<LightClientBootstrap<SYNC_COMMITTEE_SIZE>, Error> {
+        Ok(serde_json::from_slice(&self.db.get("bootstrap")?.ok_or(
+            Error::Other {
+                description: "bootstrap not found".into(),
+            },
+        )?)?)
+    }
+
+    pub fn store_boostrap(
+        &self,
+        bootstrap: &LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+    ) -> Result<(), Error> {
+        let value = serde_json::to_string_pretty(bootstrap)?;
+        debug!("store_bootstrap: {}", value);
+        self.db.put("bootstrap", value)?;
+        Ok(())
+    }
+
+    pub fn get_light_client_state(
+        &self,
+    ) -> Result<
+        LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+        Error,
+    > {
+        Ok(serde_json::from_slice(&self.db.get("state")?.ok_or(
+            Error::Other {
+                description: "light_client_state not found".into(),
+            },
+        )?)?)
+    }
+
+    pub fn store_light_client_state(
+        &self,
+        state: &LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    ) -> Result<(), Error> {
+        let value = serde_json::to_string_pretty(state)?;
+        debug!("store_light_client_state: {}", value);
+        self.db.put("state", value)?;
+        Ok(())
+    }
+}
+
+impl<
+        const MAX_PROPOSER_SLASHINGS: usize,
+        const MAX_VALIDATORS_PER_COMMITTEE: usize,
+        const MAX_ATTESTER_SLASHINGS: usize,
+        const MAX_ATTESTATIONS: usize,
+        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+        const MAX_DEPOSITS: usize,
+        const MAX_VOLUNTARY_EXITS: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+        const MAX_BYTES_PER_TRANSACTION: usize,
+        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const SYNC_COMMITTEE_SIZE: usize,
+    > ChainContext
+    for Context<
+        MAX_PROPOSER_SLASHINGS,
+        MAX_VALIDATORS_PER_COMMITTEE,
+        MAX_ATTESTER_SLASHINGS,
+        MAX_ATTESTATIONS,
+        DEPOSIT_CONTRACT_TREE_DEPTH,
+        MAX_DEPOSITS,
+        MAX_VOLUNTARY_EXITS,
+        BYTES_PER_LOGS_BLOOM,
+        MAX_EXTRA_DATA_BYTES,
+        MAX_BYTES_PER_TRANSACTION,
+        MAX_TRANSACTIONS_PER_PAYLOAD,
+        SYNC_COMMITTEE_SIZE,
+    >
+{
+    fn genesis_time(&self) -> ethereum_consensus::types::U64 {
+        todo!()
+    }
+
+    fn fork_parameters(&self) -> &ethereum_consensus::fork::ForkParameters {
+        &self.config.fork_parameters
+    }
+
+    fn seconds_per_slot(&self) -> ethereum_consensus::types::U64 {
+        self.config.preset.SECONDS_PER_SLOT
+    }
+
+    fn slots_per_epoch(&self) -> ethereum_consensus::beacon::Slot {
+        self.config.preset.SLOTS_PER_EPOCH
+    }
+
+    fn epochs_per_sync_committee_period(&self) -> ethereum_consensus::beacon::Epoch {
+        self.config.preset.EPOCHS_PER_SYNC_COMMITTEE_PERIOD
+    }
+}
