@@ -20,7 +20,7 @@ use ethereum_light_client_verifier::{
     consensus::{CurrentNextSyncProtocolVerifier, SyncProtocolVerifier},
     context::{ConsensusVerificationContext, Fraction, LightClientContext},
     state::apply_sync_committee_update,
-    updates::{ConsensusUpdate, ConsensusUpdateInfo},
+    updates::ConsensusUpdateInfo,
 };
 use log::*;
 use ssz_rs::Merkleized;
@@ -358,11 +358,7 @@ impl<
         );
 
         self.verifier
-            .validate_consensus_update(vctx, state, &updates.0)?;
-        self.verifier.validate_execution_update(
-            updates.0.finalized_header().body_root.clone(),
-            &updates.1,
-        )?;
+            .validate_updates(vctx, state, &updates.0, &updates.1)?;
 
         let mut updated = false;
         let mut new_state = state.clone();
