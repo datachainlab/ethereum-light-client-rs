@@ -1,5 +1,7 @@
 # ethereum-light-client
 
+[![test](https://github.com/datachainlab/ethereum-light-client/actions/workflows/test.yml/badge.svg)](https://github.com/datachainlab/ethereum-light-client/actions/workflows/test.yml)
+
 A rust implementation of the ethereum light client that supports `no_std`.
 
 It currently supports the verification of [Sync Protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md), also called Altair Light Client.
