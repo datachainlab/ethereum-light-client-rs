@@ -60,7 +60,6 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         consensus_update.validate_basic(ctx)?;
         execution_update.validate_basic()?;
 
-        // self.validate_consensus_update_with_store(store, consensus_update)?;
         self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
         self.validate_execution_update(
@@ -116,6 +115,8 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         Ok(())
     }
 
+    /// validates a misbehaviour with the store.
+    /// it returns `Ok` if the misbehaviour is valid
     fn validate_misbehaviour<
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
