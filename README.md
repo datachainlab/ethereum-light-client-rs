@@ -6,8 +6,8 @@ It currently supports the verification of [Sync Protocol](https://github.com/eth
 
 ## Key Features
 
-- A verifier of Sync Protocol
-- Support detection of Sync committee's misbehaviour
+- A verification library of Sync Protocol
+- Support the detection of Sync committee's misbehaviour
 - `no_std` support: easy to integrate into any environment(e.g. wasm, sgx enclave)
 
 ## Crates

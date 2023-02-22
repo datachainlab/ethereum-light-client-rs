@@ -17,7 +17,6 @@ log = { version = "0.4.17" }
 dirs = "4.0"
 env_logger = { version = "0.10.0" }
 tokio = { version = "1.24.1", default-features = false, features = ["rt-multi-thread", "macros"] }
-rocksdb = { version = "0.19.0" }
 
 ssz-rs = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", default-features = false, features = ["serde"] }
 ssz-rs-derive = { git = "https://github.com/bluele/ssz_rs", branch = "serde-no-std", default-features = false }

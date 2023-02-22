@@ -8,8 +8,6 @@ pub enum Error {
     IOError(std::io::Error),
     /// serde error: `{0}`
     SerdeError(serde_json::Error),
-    /// rocksdb error: `{0}`
-    RocksDBError(rocksdb::Error),
     /// verifier error: `{0}`
     VerifierError(ethereum_light_client_verifier::errors::Error),
     /// common error: `{0}`
@@ -37,12 +35,6 @@ impl From<std::io::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
         Self::SerdeError(value)
-    }
-}
-
-impl From<rocksdb::Error> for Error {
-    fn from(value: rocksdb::Error) -> Self {
-        Self::RocksDBError(value)
     }
 }
 

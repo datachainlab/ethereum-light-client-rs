@@ -1,11 +1,11 @@
 use crate::chain::Network;
 use crate::cli::Opts;
+use crate::db::{FileDB, DB};
 use crate::{errors::Error, state::LightClientStore};
 use ethereum_consensus::config::Config;
 use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::sync_protocol::LightClientBootstrap;
 use log::*;
-use rocksdb::DB;
 
 #[derive(Debug)]
 pub struct Context<
@@ -25,7 +25,7 @@ pub struct Context<
     pub(crate) config: Config,
     pub(crate) beacon_endpoint: String,
     pub(crate) network: Network,
-    db: DB,
+    db: FileDB,
 }
 
 impl<
@@ -65,7 +65,7 @@ impl<
         }
         Ok(Self {
             config: network.config(),
-            db: DB::open_default(home_dir.join("store"))?,
+            db: FileDB::open(home_dir.join("store"))?,
             beacon_endpoint: opts.beacon_endpoint,
             network: Network::from_str(&opts.network)?,
         })
