@@ -16,6 +16,12 @@ use ssz_rs_derive::SimpleSerialize;
 )]
 pub struct PublicKey(#[serde(with = "PublicKeyBytesDef")] PublicKeyBytes);
 
+impl PublicKey {
+    pub fn from_vec(bz: Vec<u8>) -> Result<Self, Error> {
+        Ok(PublicKeyBytes::from_vec(bz)?.into())
+    }
+}
+
 impl Deref for PublicKey {
     type Target = PublicKeyBytes;
     fn deref(&self) -> &Self::Target {
@@ -51,6 +57,12 @@ impl Deref for PublicKeyBytes {
     type Target = Vector<u8, PUBLIC_KEY_BYTES_LEN>;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl From<PublicKeyBytes> for PublicKey {
+    fn from(pb: PublicKeyBytes) -> Self {
+        Self(pb)
     }
 }
 
