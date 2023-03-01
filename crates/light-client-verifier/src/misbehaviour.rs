@@ -1,7 +1,7 @@
 use crate::{errors::Error, updates::ConsensusUpdate};
 use ethereum_consensus::{compute::compute_sync_committee_period_at_slot, context::ChainContext};
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Misbehaviour<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>> {
     FinalizedHeader(FinalizedHeaderMisbehaviour<SYNC_COMMITTEE_SIZE, CU>),
     NextSyncCommittee(NextSyncCommitteeMisbehaviour<SYNC_COMMITTEE_SIZE, CU>),
@@ -33,7 +33,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>
 /// 1. Two updates are valid with the consensus state of the client
 /// 2. Each finalized header in the two updates has a same finalized slot
 /// 3. The two finalized headers are different from each other
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FinalizedHeaderMisbehaviour<
     const SYNC_COMMITTEE_SIZE: usize,
     CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
@@ -67,7 +67,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>
 /// 1. Two updates are valid with the consensus state of the client
 /// 2. Each attested header in the two updates has a same period
 /// 3. The two next sync committees are different from each other
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NextSyncCommitteeMisbehaviour<
     const SYNC_COMMITTEE_SIZE: usize,
     CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
