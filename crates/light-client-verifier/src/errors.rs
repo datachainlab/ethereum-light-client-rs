@@ -55,6 +55,12 @@ pub enum Error {
     DifferentSlotInFinalizedHeaderMisbehaviour(Slot, Slot),
     /// both updates of misbehaviour data must have different finalized header: {0:?}
     SameFinalizedHeaderInFinalizedHeaderMisbehaviour(BeaconBlockHeader),
+    /// non-existence error in execution layer
+    ExecutionValueNonExist,
+    /// existence error in execution layer
+    ExecutionValueExist,
+    /// value mismatch error in execution layer: {0:?} != {1:?}
+    ExecutionValueMismatch(Vec<u8>, Vec<u8>),
     /// other error: `{description}`
     Other { description: String },
 }

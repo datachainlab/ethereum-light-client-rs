@@ -33,10 +33,16 @@ impl ExecutionVerifier {
         key: &[u8],
         expected_value: &[u8],
         proof: Vec<Vec<u8>>,
-    ) -> Result<bool, Error> {
-        Ok(self
-            .verify(root, key, proof)?
-            .map_or(false, |v| v == expected_value))
+    ) -> Result<(), Error> {
+        if let Some(value) = self.verify(root, key, proof)? {
+            if value == expected_value {
+                Ok(())
+            } else {
+                Err(Error::ExecutionValueMismatch(value, expected_value.into()))
+            }
+        } else {
+            Err(Error::ExecutionValueNonExist)
+        }
     }
 
     /// check if a value corresponding to `key` doesn't exist
@@ -45,8 +51,12 @@ impl ExecutionVerifier {
         root: H256,
         key: &[u8],
         proof: Vec<Vec<u8>>,
-    ) -> Result<bool, Error> {
-        Ok(self.verify(root, key, proof)?.is_none())
+    ) -> Result<(), Error> {
+        if let Some(_) = self.verify(root, key, proof)? {
+            Err(Error::ExecutionValueExist)
+        } else {
+            Ok(())
+        }
     }
 
     /// verify an account with a given address and proof
