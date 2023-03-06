@@ -17,6 +17,8 @@ pub enum Error {
     InvalidBLSPublicKeyLength(usize, usize),
     /// bls aggreate public key mismatch: `{0:?} != {1:?}`
     BLSAggregatePublicKeyMismatch(PublicKey, PublicKey),
+    /// invalid address length: `expected={0} actual={1}`
+    InvalidAddressLength(usize, usize),
     /// other error: `{description}`
     Other { description: String },
 }

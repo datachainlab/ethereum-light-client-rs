@@ -212,6 +212,19 @@ impl U256 {
 #[serde(transparent)]
 pub struct Address(#[serde(with = "serde_hex")] pub [u8; 20]);
 
+impl TryFrom<&[u8]> for Address {
+    type Error = Error;
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() == 20 {
+            let mut addr: [u8; 20] = Default::default();
+            addr.copy_from_slice(value);
+            Ok(Self(addr))
+        } else {
+            Err(Error::InvalidAddressLength(20, value.len()))
+        }
+    }
+}
+
 #[derive(
     Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
 )]
