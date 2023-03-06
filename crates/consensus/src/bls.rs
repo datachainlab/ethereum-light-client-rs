@@ -16,16 +16,17 @@ use ssz_rs_derive::SimpleSerialize;
 )]
 pub struct PublicKey(#[serde(with = "PublicKeyBytesDef")] PublicKeyBytes);
 
-impl PublicKey {
-    pub fn from_vec(bz: Vec<u8>) -> Result<Self, Error> {
-        Ok(PublicKeyBytes::from_vec(bz)?.into())
-    }
-}
-
 impl Deref for PublicKey {
     type Target = PublicKeyBytes;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl TryFrom<Vec<u8>> for PublicKey {
+    type Error = Error;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        Ok(PublicKeyBytes::try_from(value)?.into())
     }
 }
 
@@ -40,17 +41,6 @@ impl PublicKeyBytes {
         array.copy_from_slice(self.as_slice());
         array
     }
-
-    pub fn from_vec(bz: Vec<u8>) -> Result<Self, Error> {
-        if bz.len() != PUBLIC_KEY_BYTES_LEN {
-            Err(Error::InvalidBLSPublicKeyLength(
-                PUBLIC_KEY_BYTES_LEN,
-                bz.len(),
-            ))
-        } else {
-            Ok(Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(bz)))
-        }
-    }
 }
 
 impl Deref for PublicKeyBytes {
@@ -63,6 +53,20 @@ impl Deref for PublicKeyBytes {
 impl From<PublicKeyBytes> for PublicKey {
     fn from(pb: PublicKeyBytes) -> Self {
         Self(pb)
+    }
+}
+
+impl TryFrom<Vec<u8>> for PublicKeyBytes {
+    type Error = Error;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.len() != PUBLIC_KEY_BYTES_LEN {
+            Err(Error::InvalidBLSPublicKeyLength(
+                PUBLIC_KEY_BYTES_LEN,
+                value.len(),
+            ))
+        } else {
+            Ok(Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(value)))
+        }
     }
 }
 
@@ -91,7 +95,7 @@ impl TryFrom<PublicKey> for BLSPublicKey {
 
 impl From<BLSPublicKey> for PublicKey {
     fn from(value: BLSPublicKey) -> Self {
-        PublicKey(PublicKeyBytes::from_vec(value.as_bytes().to_vec()).unwrap())
+        PublicKey(PublicKeyBytes::try_from(value.as_bytes().to_vec()).unwrap())
     }
 }
 
@@ -120,6 +124,13 @@ impl Deref for Signature {
     }
 }
 
+impl TryFrom<Vec<u8>> for Signature {
+    type Error = Error;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        Ok(SignatureBytes::try_from(value)?.into())
+    }
+}
+
 #[derive(
     Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
 )]
@@ -137,6 +148,31 @@ impl Deref for SignatureBytes {
     type Target = Vector<u8, SIGNATURE_BYTES_LEN>;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl From<Signature> for SignatureBytes {
+    fn from(value: Signature) -> Self {
+        value.0
+    }
+}
+
+impl From<SignatureBytes> for Signature {
+    fn from(value: SignatureBytes) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<Vec<u8>> for SignatureBytes {
+    type Error = Error;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        if value.len() != SIGNATURE_BYTES_LEN {
+            return Err(Error::InvalidBLSSignatureLenght(
+                SIGNATURE_BYTES_LEN,
+                value.len(),
+            ));
+        }
+        Ok(Self(Vector::<u8, SIGNATURE_BYTES_LEN>::from_iter(value)))
     }
 }
 

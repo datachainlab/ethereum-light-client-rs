@@ -11,6 +11,8 @@ pub enum Error {
     SSZDeserializeError(ssz_rs::DeserializeError),
     /// hex error: `{0:?}`
     FromHexError(hex::FromHexError),
+    /// invalid bls signature length: `expected={0} actual={1}`
+    InvalidBLSSignatureLenght(usize, usize),
     /// invalid bls public key length: `expected={0} actual={1}`
     InvalidBLSPublicKeyLength(usize, usize),
     /// bls aggreate public key mismatch: `{0:?} != {1:?}`
