@@ -1392,7 +1392,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 [[package]]
 name = "ssz-rs"
 version = "0.8.0"
-source = "git+https://github.com/bluele/ssz_rs?branch=serde-no-std#fa815df8f6fd535fc2d3586e8857e9d44f1ee073"
+source = "git+https://github.com/bluele/ssz_rs?branch=serde-no-std#32d5e2c11cb8079a980cd0bef1af006d3aec7d7c"
 dependencies = [
  "bitvec",
  "hex",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "ssz-rs-derive"
 version = "0.8.0"
-source = "git+https://github.com/bluele/ssz_rs?branch=serde-no-std#fa815df8f6fd535fc2d3586e8857e9d44f1ee073"
+source = "git+https://github.com/bluele/ssz_rs?branch=serde-no-std#32d5e2c11cb8079a980cd0bef1af006d3aec7d7c"
 dependencies = [
  "proc-macro2",
  "quote",
