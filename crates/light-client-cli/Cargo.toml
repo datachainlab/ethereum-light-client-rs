@@ -9,7 +9,7 @@ path = "bin/main.rs"
 
 [dependencies]
 clap = { version = "4.1.1", features = ["derive"] }
-serde = { version = "1.0", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.91" }
 displaydoc = { version = "0.2", default-features = false }
 anyhow = { version = "1.0.56" }

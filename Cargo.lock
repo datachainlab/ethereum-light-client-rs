@@ -304,7 +304,6 @@ dependencies = [
  "primitive-types",
  "rs_merkle 1.3.0",
  "serde",
- "serde_derive",
  "serde_json",
  "sha2 0.10.6",
  "ssz-rs",
@@ -344,7 +343,6 @@ dependencies = [
  "primitive-types",
  "rlp",
  "serde",
- "serde_derive",
  "serde_json",
  "trie-db",
 ]
@@ -746,7 +744,6 @@ dependencies = [
  "log",
  "reqwest",
  "serde",
- "serde_derive",
  "serde_json",
  "tokio",
 ]
