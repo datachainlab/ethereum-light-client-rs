@@ -1,5 +1,5 @@
 use crate::{
-    beacon::{BeaconBlockHeader, GeneralizedIndex, Slot},
+    beacon::{BeaconBlockHeader, Slot},
     bls::{is_equal_pubkeys_and_aggreate_pub_key, PublicKey, Signature},
     errors::Error,
     internal_prelude::*,
@@ -14,12 +14,15 @@ pub type SyncCommitteePeriod = U64;
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#constants
 /// get_generalized_index(BeaconState, 'finalized_checkpoint', 'root')
 pub const FINALIZED_ROOT_INDEX: u64 = 105;
+pub const FINALIZED_ROOT_SUBTREE_INDEX: u64 = 41;
 pub const FINALIZED_ROOT_DEPTH: usize = 6;
 /// get_generalized_index(BeaconState, 'current_sync_committee')
 pub const CURRENT_SYNC_COMMITTEE_INDEX: u64 = 54;
+pub const CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX: u64 = 22;
 pub const CURRENT_SYNC_COMMITTEE_DEPTH: usize = 5;
 /// get_generalized_index(BeaconState, 'next_sync_committee')
 pub const NEXT_SYNC_COMMITTEE_INDEX: u64 = 55;
+pub const NEXT_SYNC_COMMITTEE_SUBTREE_INDEX: u64 = 23;
 pub const NEXT_SYNC_COMMITTEE_DEPTH: usize = 5;
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/beacon-chain.md#synccommittee
@@ -115,14 +118,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize> From<LightClientFinalityUpdate<SYNC_COMMI
             signature_slot: value.signature_slot,
         }
     }
-}
-
-/// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#get_subtree_index
-pub fn get_subtree_index(generalized_index: GeneralizedIndex) -> u64 {
-    generalized_index
-        % 2u64
-            .checked_pow((generalized_index as f64).log2().floor() as u32)
-            .unwrap()
 }
 
 #[cfg(test)]
