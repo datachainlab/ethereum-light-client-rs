@@ -1,6 +1,6 @@
-# ethereum-light-client
+# ethereum-light-client-rs
 
-[![test](https://github.com/datachainlab/ethereum-light-client/actions/workflows/test.yml/badge.svg)](https://github.com/datachainlab/ethereum-light-client/actions/workflows/test.yml)
+[![test](https://github.com/datachainlab/ethereum-light-client-rs/actions/workflows/test.yml/badge.svg)](https://github.com/datachainlab/ethereum-light-client-rs/actions/workflows/test.yml)
 
 A rust implementation of the ethereum light client that supports `no_std`.
 
