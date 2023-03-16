@@ -18,8 +18,8 @@ use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
 };
 use ethereum_consensus::sync_protocol::{
-    get_subtree_index, LightClientBootstrap, SyncCommittee, CURRENT_SYNC_COMMITTEE_INDEX,
-    FINALIZED_ROOT_INDEX, NEXT_SYNC_COMMITTEE_INDEX,
+    LightClientBootstrap, SyncCommittee,
+    CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX, NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
 };
 use ethereum_consensus::types::H256;
 
@@ -40,7 +40,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         validate_merkle_branch(
             hash_tree_root(bootstrap.current_sync_committee.clone())?,
             &bootstrap.current_sync_committee_branch,
-            get_subtree_index(CURRENT_SYNC_COMMITTEE_INDEX),
+            CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
             bootstrap.header.beacon.state_root.clone(),
         )
     }
@@ -359,7 +359,7 @@ pub fn verify_merkle_branches_with_attested_header<
     validate_merkle_branch(
         finalized_root,
         &consensus_update.finalized_header_branch(),
-        get_subtree_index(FINALIZED_ROOT_INDEX),
+        FINALIZED_ROOT_SUBTREE_INDEX,
         consensus_update.attested_header().state_root.clone(),
     )?;
 
@@ -370,7 +370,7 @@ pub fn verify_merkle_branches_with_attested_header<
                 .next_sync_committee_branch()
                 .unwrap()
                 .as_ref(),
-            get_subtree_index(NEXT_SYNC_COMMITTEE_INDEX),
+            NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
             consensus_update.attested_header().state_root.clone(),
         )?;
     }
