@@ -26,7 +26,6 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - uses: Swatinem/rust-cache@v2
       - run: |
           cd ci/no-std-check
           make check-panic-conflict
@@ -41,7 +40,6 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
           override: true
-      - uses: Swatinem/rust-cache@v2
       - run: |
           cd ci/no-std-check
           make check-substrate
