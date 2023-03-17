@@ -1,3 +1,3 @@
 .PHONY: lint
 lint:
-	@cargo check --locked --tests
+	@cargo fmt --all -- --check
