@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use ethereum_consensus::{
-    beacon::{BeaconBlock, Epoch, Slot},
+    beacon::{Epoch, Slot},
     compute::{compute_epoch_at_slot, compute_sync_committee_period},
     config::{self, Config},
     context::ChainContext,
@@ -39,7 +39,7 @@ impl Chain {
         &self,
         slot: Slot,
     ) -> Result<
-        BeaconBlock<
+        ethereum_consensus::bellatrix::BeaconBlock<
             MAX_PROPOSER_SLASHINGS,
             MAX_VALIDATORS_PER_COMMITTEE,
             MAX_ATTESTER_SLASHINGS,
@@ -56,7 +56,7 @@ impl Chain {
     > {
         Ok(self
             .rpc_client
-            .get_beacon_block_by_slot(slot)
+            .get_bellatrix_beacon_block_by_slot(slot)
             .await?
             .data
             .message)

@@ -1,4 +1,4 @@
-use ethereum_consensus::beacon::{BeaconBlock, BeaconBlockHeader, Checkpoint, Root, Slot};
+use ethereum_consensus::beacon::{BeaconBlockHeader, Checkpoint, Root, Slot};
 use ethereum_consensus::bls::Signature;
 use ethereum_consensus::sync_protocol::{
     LightClientBootstrap, LightClientFinalityUpdate, LightClientHeader, LightClientUpdate,
@@ -19,7 +19,7 @@ pub struct GenesisData {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct BeaconBlockResponse<
+pub struct BellatrixBeaconBlockResponse<
     const MAX_PROPOSER_SLASHINGS: usize,
     const MAX_VALIDATORS_PER_COMMITTEE: usize,
     const MAX_ATTESTER_SLASHINGS: usize,
@@ -33,7 +33,7 @@ pub struct BeaconBlockResponse<
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
     const SYNC_COMMITTEE_SIZE: usize,
 > {
-    pub data: BeaconBlockMessage<
+    pub data: BellatrixBeaconBlockMessage<
         MAX_PROPOSER_SLASHINGS,
         MAX_VALIDATORS_PER_COMMITTEE,
         MAX_ATTESTER_SLASHINGS,
@@ -52,7 +52,7 @@ pub struct BeaconBlockResponse<
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct BeaconBlockMessage<
+pub struct BellatrixBeaconBlockMessage<
     const MAX_PROPOSER_SLASHINGS: usize,
     const MAX_VALIDATORS_PER_COMMITTEE: usize,
     const MAX_ATTESTER_SLASHINGS: usize,
@@ -66,7 +66,7 @@ pub struct BeaconBlockMessage<
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
     const SYNC_COMMITTEE_SIZE: usize,
 > {
-    pub message: BeaconBlock<
+    pub message: ethereum_consensus::bellatrix::BeaconBlock<
         MAX_PROPOSER_SLASHINGS,
         MAX_VALIDATORS_PER_COMMITTEE,
         MAX_ATTESTER_SLASHINGS,

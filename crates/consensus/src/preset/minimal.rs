@@ -23,9 +23,10 @@ pub const PRESET: Preset = Preset {
     MAX_TRANSACTIONS_PER_PAYLOAD: 1048576,
     BYTES_PER_LOGS_BLOOM: 256,
     MAX_EXTRA_DATA_BYTES: 32,
+    MAX_WITHDRAWALS_PER_PAYLOAD: 4,
 };
 
-pub type BeaconBlock = crate::beacon::BeaconBlock<
+pub type BellatrixBeaconBlock = crate::bellatrix::BeaconBlock<
     { PRESET.MAX_PROPOSER_SLASHINGS },
     { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
     { PRESET.MAX_ATTESTER_SLASHINGS },

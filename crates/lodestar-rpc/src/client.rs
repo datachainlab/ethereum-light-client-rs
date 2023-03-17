@@ -1,6 +1,6 @@
 use crate::errors::Error;
 use crate::types::{
-    BeaconBlockResponse, BeaconBlockRootResponse, BeaconHeaderResponse,
+    BeaconBlockRootResponse, BeaconHeaderResponse, BellatrixBeaconBlockResponse,
     FinalityCheckpointsResponse, GenesisDataResponse, LightClientBootstrapResponse,
     LightClientFinalityUpdateResponse, LightClientUpdatesResponse,
 };
@@ -32,7 +32,7 @@ impl RPCClient {
         self.request_get("/eth/v1/beacon/genesis").await
     }
 
-    pub async fn get_beacon_block_by_slot<
+    pub async fn get_bellatrix_beacon_block_by_slot<
         const MAX_PROPOSER_SLASHINGS: usize,
         const MAX_VALIDATORS_PER_COMMITTEE: usize,
         const MAX_ATTESTER_SLASHINGS: usize,
@@ -49,7 +49,7 @@ impl RPCClient {
         &self,
         slot: Slot,
     ) -> Result<
-        BeaconBlockResponse<
+        BellatrixBeaconBlockResponse<
             MAX_PROPOSER_SLASHINGS,
             MAX_VALIDATORS_PER_COMMITTEE,
             MAX_ATTESTER_SLASHINGS,

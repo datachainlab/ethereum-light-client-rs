@@ -8,7 +8,9 @@ mod internal_prelude {
 }
 
 pub mod beacon;
+pub mod bellatrix;
 pub mod bls;
+pub mod capella;
 pub mod compute;
 pub mod config;
 pub mod context;

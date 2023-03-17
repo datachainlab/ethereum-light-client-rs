@@ -33,6 +33,7 @@ pub struct Preset {
     pub MAX_TRANSACTIONS_PER_PAYLOAD: usize,
     pub BYTES_PER_LOGS_BLOOM: usize,
     pub MAX_EXTRA_DATA_BYTES: usize,
+    pub MAX_WITHDRAWALS_PER_PAYLOAD: usize,
 
     /// Sync committee
     /// ---------------------------------------------------------------
