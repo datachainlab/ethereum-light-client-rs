@@ -18,8 +18,8 @@ use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
 };
 use ethereum_consensus::sync_protocol::{
-    LightClientBootstrap, SyncCommittee,
-    CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX, NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
+    LightClientBootstrap, SyncCommittee, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
+    FINALIZED_ROOT_SUBTREE_INDEX, NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
 };
 use ethereum_consensus::types::H256;
 
