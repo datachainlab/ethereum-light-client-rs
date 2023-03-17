@@ -26,6 +26,7 @@ pub struct Preset {
     pub MAX_ATTESTATIONS: usize,
     pub MAX_DEPOSITS: usize,
     pub MAX_VOLUNTARY_EXITS: usize,
+    pub MAX_BLS_TO_EXECUTION_CHANGES: usize,
 
     /// Execution
     /// ---------------------------------------------------------------

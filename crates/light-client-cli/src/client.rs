@@ -6,12 +6,12 @@ use crate::{
 };
 use core::time::Duration;
 use ethereum_consensus::{
-    beacon::{gen_execution_payload_proof, Root, Slot},
+    beacon::{Root, Slot},
+    bellatrix,
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
     execution::{
-        gen_execution_payload_fields_proof, BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX,
-        EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
+        BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
     },
     sync_protocol::{LightClientUpdate, SyncCommitteePeriod},
     types::{H256, U64},
@@ -312,17 +312,17 @@ impl<
         let execution_update = {
             let mut execution_update =
                 ExecutionUpdateInfo::<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>::default();
-            let (_, payload_branch) = gen_execution_payload_proof(&block.body)?;
+            let (_, payload_branch) = bellatrix::gen_execution_payload_proof(&block.body)?;
 
             let execution_payload = block.body.execution_payload;
             execution_update.block_number = execution_payload.block_number;
             execution_update.state_root = execution_payload.state_root.clone();
             execution_update.execution_payload_header = execution_payload.to_header();
-            let (_, state_root_branch) = gen_execution_payload_fields_proof(
+            let (_, state_root_branch) = bellatrix::gen_execution_payload_fields_proof(
                 &execution_update.execution_payload_header,
                 &[EXECUTION_PAYLOAD_STATE_ROOT_INDEX],
             )?;
-            let (_, block_number_branch) = gen_execution_payload_fields_proof(
+            let (_, block_number_branch) = bellatrix::gen_execution_payload_fields_proof(
                 &execution_update.execution_payload_header,
                 &[EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX],
             )?;

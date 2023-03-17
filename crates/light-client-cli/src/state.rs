@@ -1,7 +1,7 @@
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
+    bellatrix::ExecutionPayloadHeader,
     compute::hash_tree_root,
-    execution::ExecutionPayloadHeader,
     sync_protocol::{LightClientBootstrap, SyncCommittee},
     types::{H256, U64},
 };
