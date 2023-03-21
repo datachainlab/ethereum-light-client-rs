@@ -46,8 +46,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>
     FinalizedHeaderMisbehaviour<SYNC_COMMITTEE_SIZE, CU>
 {
     pub fn validate_basic(&self) -> Result<(), Error> {
-        let header_1 = self.consensus_update_1.finalized_header();
-        let header_2 = self.consensus_update_2.finalized_header();
+        let header_1 = self.consensus_update_1.finalized_beacon_header();
+        let header_2 = self.consensus_update_2.finalized_beacon_header();
         if header_1.slot != header_2.slot {
             Err(Error::DifferentSlotInFinalizedHeaderMisbehaviour(
                 header_1.slot,
@@ -82,11 +82,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>
     pub fn validate_basic<CC: ChainContext>(&self, ctx: &CC) -> Result<(), Error> {
         let period_1 = compute_sync_committee_period_at_slot(
             ctx,
-            self.consensus_update_1.attested_header().slot,
+            self.consensus_update_1.attested_beacon_header().slot,
         );
         let period_2 = compute_sync_committee_period_at_slot(
             ctx,
-            self.consensus_update_2.attested_header().slot,
+            self.consensus_update_2.attested_beacon_header().slot,
         );
         let next_1 = self.consensus_update_1.next_sync_committee();
         let next_2 = self.consensus_update_2.next_sync_committee();

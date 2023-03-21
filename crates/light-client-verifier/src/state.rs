@@ -54,8 +54,8 @@ pub fn apply_sync_committee_update<
         state.set_next_sync_committee(update_next.map(|c| c.clone()));
         updated = true;
     }
-    if consensus_update.finalized_header().slot > state.current_slot() {
-        state.set_finalized_header(consensus_update.finalized_header().clone());
+    if consensus_update.finalized_beacon_header().slot > state.current_slot() {
+        state.set_finalized_header(consensus_update.finalized_beacon_header().clone());
         updated = true;
     }
     Ok(updated)
@@ -81,7 +81,7 @@ fn should_update_sync_committees<
 > {
     let store_period = compute_sync_committee_period_at_slot(ctx, state.current_slot());
     let update_finalized_period =
-        compute_sync_committee_period_at_slot(ctx, consensus_update.finalized_header().slot);
+        compute_sync_committee_period_at_slot(ctx, consensus_update.finalized_beacon_header().slot);
 
     if store_period != update_finalized_period && store_period + 1 != update_finalized_period {
         return Err(Error::InvalidFinalizedPeriod(

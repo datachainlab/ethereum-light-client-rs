@@ -1,5 +1,5 @@
 use clap::Parser;
-pub use info::InfoCommand;
+// pub use info::InfoCommand;
 pub use init::InitCommand;
 pub use update::UpdateCommand;
 
@@ -13,6 +13,6 @@ pub enum Command {
     Init(InitCommand),
     #[clap(about = "Update light client")]
     Update(UpdateCommand),
-    #[clap(about = "Show info")]
-    Info(InfoCommand),
+    // #[clap(about = "Show info")]
+    // Info(InfoCommand),
 }

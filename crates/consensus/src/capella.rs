@@ -8,7 +8,10 @@ use crate::{
     errors::Error,
     execution::BlockNumber,
     internal_prelude::*,
-    sync_protocol::SyncAggregate,
+    sync_protocol::{
+        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
+        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
+    },
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
@@ -274,6 +277,49 @@ pub struct Withdrawal {
     pub validator_index: ValidatorIndex,
     pub address: Address,
     pub amount: Gwei,
+}
+
+/// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#lightclientbootstrap
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LightClientBootstrap<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const BYTES_PER_LOGS_BLOOM: usize,
+    const MAX_EXTRA_DATA_BYTES: usize,
+> {
+    pub header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    /// Current sync committee corresponding to `beacon_header.state_root`
+    pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
+    pub current_sync_committee_branch: [H256; CURRENT_SYNC_COMMITTEE_DEPTH],
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LightClientUpdate<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const BYTES_PER_LOGS_BLOOM: usize,
+    const MAX_EXTRA_DATA_BYTES: usize,
+> {
+    /// Header attested to by the sync committee
+    pub attested_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    /// Next sync committee corresponding to `attested_header.state_root`
+    pub next_sync_committee: Option<(
+        SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        [H256; NEXT_SYNC_COMMITTEE_DEPTH],
+    )>,
+    /// Finalized header corresponding to `attested_header.state_root`
+    pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
+    /// Sync committee aggregate signature
+    pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
+    /// Slot at which the aggregate signature was created (untrusted)
+    pub signature_slot: Slot,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LightClientHeader<const BYTES_PER_LOGS_BLOOM: usize, const MAX_EXTRA_DATA_BYTES: usize> {
+    /// Header matching the requested beacon block root
+    pub beacon: BeaconBlockHeader,
+    pub execution: ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    pub execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
 }
 
 // TODO each fork's prover implementation is redundant

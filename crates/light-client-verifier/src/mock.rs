@@ -1,5 +1,5 @@
 use crate::state::{SyncCommitteeKeeper, SyncCommitteeView};
-use ethereum_consensus::sync_protocol::{LightClientBootstrap, SyncCommittee};
+use ethereum_consensus::sync_protocol::SyncCommittee;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     types::H256,
@@ -14,14 +14,15 @@ pub struct MockStore<const SYNC_COMMITTEE_SIZE: usize> {
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
-    pub fn from_bootstrap(
-        bootstrap: LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
-        latest_execution_payload_state_root: H256,
+    pub fn new(
+        header: BeaconBlockHeader,
+        current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
+        execution_state_root: H256,
     ) -> Self {
         Self {
-            latest_finalized_header: bootstrap.header.beacon,
-            latest_execution_payload_state_root,
-            current_sync_committee: bootstrap.current_sync_committee,
+            latest_finalized_header: header,
+            latest_execution_payload_state_root: execution_state_root,
+            current_sync_committee,
             next_sync_committee: None,
         }
     }

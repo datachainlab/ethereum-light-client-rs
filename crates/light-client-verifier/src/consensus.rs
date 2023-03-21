@@ -3,7 +3,7 @@ use crate::errors::{Error, MisbehaviourError};
 use crate::internal_prelude::*;
 use crate::misbehaviour::Misbehaviour;
 use crate::state::{NextSyncCommitteeView, SyncCommitteeView};
-use crate::updates::{ConsensusUpdate, ExecutionUpdate};
+use crate::updates::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use core::marker::PhantomData;
 use ethereum_consensus::beacon::{
     is_valid_merkle_branch, Root, BLOCK_BODY_EXECUTION_PAYLOAD_INDEX, DOMAIN_SYNC_COMMITTEE,
@@ -18,30 +18,30 @@ use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
 };
 use ethereum_consensus::sync_protocol::{
-    LightClientBootstrap, SyncCommittee, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
-    FINALIZED_ROOT_SUBTREE_INDEX, NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
+    SyncCommittee, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX,
+    NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
 };
 use ethereum_consensus::types::H256;
 
 /// SyncProtocolVerifier is a verifier of [light client sync protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md)
 pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
     /// validates a LightClientBootstrap
-    fn validate_boostrap(
+    fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
         &self,
-        bootstrap: &LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+        bootstrap: &LB,
         trusted_block_root: Option<Root>,
     ) -> Result<(), Error> {
         if let Some(trusted_block_root) = trusted_block_root {
-            let root = hash_tree_root(bootstrap.header.beacon.clone())?;
+            let root = hash_tree_root(bootstrap.beacon_header().clone())?;
             if trusted_block_root != root {
                 return Err(Error::TrustedRootMismatch(trusted_block_root, root));
             }
         }
         validate_merkle_branch(
-            hash_tree_root(bootstrap.current_sync_committee.clone())?,
-            &bootstrap.current_sync_committee_branch,
+            hash_tree_root(bootstrap.current_sync_committee().clone())?,
+            &bootstrap.current_sync_committee_branch(),
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
-            bootstrap.header.beacon.state_root.clone(),
+            bootstrap.beacon_header().state_root.clone(),
         )
     }
 
@@ -62,10 +62,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
 
         self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
-        self.validate_execution_update(
-            consensus_update.finalized_header().body_root.clone(),
-            execution_update,
-        )?;
+        self.validate_execution_update(consensus_update.execution_root(), execution_update)?;
         Ok(())
     }
 
@@ -88,28 +85,28 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
     /// validate an execution update with trusted/verified beacon block body
     fn validate_execution_update<EU: ExecutionUpdate>(
         &self,
-        trusted_beacon_body_root: Root,
+        trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
-        validate_merkle_branch(
-            update.payload_root(),
-            &update.payload_branch(),
-            BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
-            trusted_beacon_body_root,
-        )?;
+        // validate_merkle_branch(
+        //     update.payload_root(),
+        //     &update.payload_branch(),
+        //     BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
+        //     trusted_beacon_body_root,
+        // )?;
 
         validate_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
             EXECUTION_PAYLOAD_STATE_ROOT_INDEX as u64,
-            update.payload_root(),
+            trusted_execution_root.clone(),
         )?;
 
         validate_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
             EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX as u64,
-            update.payload_root(),
+            trusted_execution_root,
         )?;
 
         Ok(())
@@ -165,15 +162,16 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE
         let store_period = compute_sync_committee_period_at_slot(ctx, store.current_slot());
 
         let update_attested_period =
-            compute_sync_committee_period_at_slot(ctx, update.attested_header().slot);
+            compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);
         let update_has_next_sync_committee = store.next_sync_committee().is_none()
             && (update.next_sync_committee().is_some() && update_attested_period == store_period);
 
-        if !(update.attested_header().slot > store.current_slot() || update_has_next_sync_committee)
+        if !(update.attested_beacon_header().slot > store.current_slot()
+            || update_has_next_sync_committee)
         {
             return Err(Error::IrrelevantConsensusUpdates(format!(
-                    "attested_header_slot={} store_slot={} update_has_next_sync_committee={} is_next_sync_committee_known={}",
-                    update.attested_header().slot,
+                    "attested_beacon_header_slot={} store_slot={} update_has_next_sync_committee={} is_next_sync_committee_known={}",
+                    update.attested_beacon_header().slot,
                     store.current_slot(),
                     update_has_next_sync_committee,
                     store.next_sync_committee().is_some()
@@ -182,15 +180,15 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE
 
         let update_has_finalized_next_sync_committee = store.next_sync_committee().is_none()
             && update.next_sync_committee().is_some()
-            && compute_sync_committee_period_at_slot(ctx, update.finalized_header().slot)
+            && compute_sync_committee_period_at_slot(ctx, update.finalized_beacon_header().slot)
                 == update_attested_period;
 
-        if !(update.finalized_header().slot > store.current_slot()
+        if !(update.finalized_beacon_header().slot > store.current_slot()
             || update_has_finalized_next_sync_committee)
         {
             return Err(Error::IrrelevantConsensusUpdates(format!(
-                    "finalized_header_slot={} store_slot={} update_has_finalized_next_sync_committee={}",
-                    update.finalized_header().slot, store.current_slot(), update_has_finalized_next_sync_committee
+                    "finalized_beacon_header_slot={} store_slot={} update_has_finalized_next_sync_committee={}",
+                    update.finalized_beacon_header().slot, store.current_slot(), update_has_finalized_next_sync_committee
                 )));
         }
 
@@ -266,9 +264,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize>
         let update_signature_period =
             compute_sync_committee_period_at_slot(ctx, update.signature_slot());
         let update_finalized_period =
-            compute_sync_committee_period_at_slot(ctx, update.finalized_header().slot);
+            compute_sync_committee_period_at_slot(ctx, update.finalized_beacon_header().slot);
         let update_attested_period =
-            compute_sync_committee_period_at_slot(ctx, update.attested_header().slot);
+            compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);
 
         if update_signature_period != store_period + 1 {
             return Err(Error::InvalidSingaturePeriod(
@@ -324,7 +322,8 @@ pub fn verify_sync_committee_attestation<
         Some(fork_version),
         Some(ctx.genesis_validators_root()),
     )?;
-    let signing_root = compute_signing_root(consensus_update.attested_header().clone(), domain)?;
+    let signing_root =
+        compute_signing_root(consensus_update.attested_beacon_header().clone(), domain)?;
 
     verify_bls_signatures(
         participant_pubkeys,
@@ -350,17 +349,17 @@ pub fn verify_merkle_branches_with_attested_header<
     // to match the finalized checkpoint root saved in the state of `attested_header`.
     // Note that the genesis finalized checkpoint root is represented as a zero hash.
     let finalized_root =
-        if consensus_update.finalized_header().slot == ctx.fork_parameters().genesis_slot {
+        if consensus_update.finalized_beacon_header().slot == ctx.fork_parameters().genesis_slot {
             Default::default()
         } else {
-            hash_tree_root(consensus_update.finalized_header().clone())?
+            hash_tree_root(consensus_update.finalized_beacon_header().clone())?
         };
 
     validate_merkle_branch(
         finalized_root,
-        &consensus_update.finalized_header_branch(),
+        &consensus_update.finalized_beacon_header_branch(),
         FINALIZED_ROOT_SUBTREE_INDEX,
-        consensus_update.attested_header().state_root.clone(),
+        consensus_update.attested_beacon_header().state_root.clone(),
     )?;
 
     if let Some(update_next_sync_committee) = consensus_update.next_sync_committee() {
@@ -371,7 +370,7 @@ pub fn verify_merkle_branches_with_attested_header<
                 .unwrap()
                 .as_ref(),
             NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
-            consensus_update.attested_header().state_root.clone(),
+            consensus_update.attested_beacon_header().state_root.clone(),
         )?;
     }
 
@@ -404,20 +403,40 @@ pub fn verify_bls_signatures(
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_bellatrix {
     use super::*;
     use crate::{
         context::{Fraction, LightClientContext},
         mock::MockStore,
         state::apply_sync_committee_update,
-        updates::{ConsensusUpdateInfo, ExecutionUpdateInfo},
+        updates::bellatrix::{ConsensusUpdateInfo, ExecutionUpdateInfo},
     };
-    use ethereum_consensus::{
-        bls::aggreate_public_key, config::minimal, sync_protocol::LightClientBootstrap, types::U64,
-    };
+    use ethereum_consensus::{bls::aggreate_public_key, config::minimal, types::U64};
     use std::{fs, path::PathBuf};
 
     const TEST_DATA_DIR: &str = "./data";
+
+    #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+    #[serde(transparent)]
+    struct BellatrixLightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize>(
+        ethereum_consensus::bellatrix::LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+    );
+
+    impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>
+        for BellatrixLightClientBootstrap<SYNC_COMMITTEE_SIZE>
+    {
+        fn beacon_header(&self) -> &ethereum_consensus::beacon::BeaconBlockHeader {
+            &self.0.beacon_header
+        }
+        fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
+            &self.0.current_sync_committee
+        }
+        fn current_sync_committee_branch(
+            &self,
+        ) -> [H256; ethereum_consensus::sync_protocol::CURRENT_SYNC_COMMITTEE_DEPTH] {
+            self.0.current_sync_committee_branch.clone()
+        }
+    }
 
     #[test]
     fn test_bootstrap() {
@@ -435,7 +454,7 @@ mod tests {
         let (bootstrap, _, _) =
             get_init_state::<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>(path);
         let pubkeys: Vec<BLSPublicKey> = bootstrap
-            .current_sync_committee
+            .current_sync_committee()
             .pubkeys
             .iter()
             .map(|k| k.clone().try_into().unwrap())
@@ -449,8 +468,9 @@ mod tests {
         assert!(
             pubkey
                 == bootstrap
-                    .current_sync_committee
+                    .current_sync_committee()
                     .aggregate_pubkey
+                    .clone()
                     .try_into()
                     .unwrap()
         );
@@ -466,7 +486,11 @@ mod tests {
             get_init_state(format!("{}/initial_state.json", TEST_DATA_DIR));
         assert!(verifier.validate_boostrap(&bootstrap, None).is_ok());
 
-        let mut store = MockStore::from_bootstrap(bootstrap, execution_payload_state_root);
+        let mut store = MockStore::new(
+            bootstrap.beacon_header().clone(),
+            bootstrap.current_sync_committee().clone(),
+            execution_payload_state_root,
+        );
         let ctx = LightClientContext::new_with_config(
             minimal::CONFIG,
             genesis_validators_root,
@@ -513,8 +537,13 @@ mod tests {
                 format!("{}/light_client_update_period_5.json", TEST_DATA_DIR),
             );
             NextSyncCommitteeView {
-                current_slot: consensus_update.0.finalized_header.0.slot,
-                next_sync_committee: consensus_update.next_sync_committee.clone().unwrap().0,
+                current_slot: consensus_update.light_client_update.finalized_header.0.slot,
+                next_sync_committee: consensus_update
+                    .light_client_update
+                    .next_sync_committee
+                    .clone()
+                    .unwrap()
+                    .0,
             }
         };
         let ctx = LightClientContext::new_with_config(
@@ -554,7 +583,11 @@ mod tests {
     // returns boostrap, execution_state_root, genesis_validators_root
     fn get_init_state<const SYNC_COMMITTEE_SIZE: usize>(
         path: impl Into<PathBuf>,
-    ) -> (LightClientBootstrap<SYNC_COMMITTEE_SIZE>, H256, H256) {
+    ) -> (
+        BellatrixLightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+        H256,
+        H256,
+    ) {
         let s = fs::read_to_string(path.into()).unwrap();
         serde_json::from_str(&s).unwrap()
     }

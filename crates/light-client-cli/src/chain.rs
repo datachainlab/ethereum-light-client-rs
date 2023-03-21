@@ -22,119 +22,11 @@ impl Chain {
         }
     }
 
-    pub async fn get_beacon_block_by_slot<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
+    pub async fn get_bootstrap<
+        const SYNC_COMMITTEE_SIZE: usize,
         const BYTES_PER_LOGS_BLOOM: usize,
         const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-        const SYNC_COMMITTEE_SIZE: usize,
     >(
-        &self,
-        slot: Slot,
-    ) -> Result<
-        ethereum_consensus::bellatrix::BeaconBlock<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-        >,
-    > {
-        Ok(self
-            .rpc_client
-            .get_bellatrix_beacon_block_by_slot(slot)
-            .await?
-            .data
-            .message)
-    }
-
-    pub async fn get_finalized_info<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
-        const BYTES_PER_LOGS_BLOOM: usize,
-        const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-        const SYNC_COMMITTEE_SIZE: usize,
-        CC: ChainContext,
-    >(
-        &self,
-        ctx: &CC,
-    ) -> Result<FinalizedInfo> {
-        let checkpoints = self.rpc_client.get_finality_checkpoints().await?.data;
-
-        let update = self
-            .rpc_client
-            .get_finality_update::<SYNC_COMMITTEE_SIZE>()
-            .await?
-            .data;
-        let finalized_block = self
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(checkpoints.finalized.epoch * ctx.slots_per_epoch())
-            .await?;
-        let attested_finalized_block = self
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(update.finalized_header.beacon.slot)
-            .await?;
-
-        Ok(FinalizedInfo {
-            latest_finalized: FinalizedPoints::from_epoch(
-                ctx,
-                checkpoints.finalized.epoch,
-                finalized_block.body.execution_payload.block_number,
-            ),
-            latest_attested_finalized: FinalizedPoints::from_slot(
-                ctx,
-                update.finalized_header.beacon.slot,
-                attested_finalized_block.body.execution_payload.block_number,
-            ),
-        })
-    }
-
-    pub async fn get_bootstrap<const SYNC_COMMITTEE_SIZE: usize>(
         &self,
         finalized_root: Option<H256>,
     ) -> Result<LightClientBootstrap<SYNC_COMMITTEE_SIZE>> {
@@ -148,7 +40,14 @@ impl Chain {
                 .finalized
                 .root
         };
-        Ok(self.rpc_client.get_bootstrap(finalized_root).await?.data)
+        Ok(self
+            .rpc_client
+            .get_bootstrap::<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>(
+                finalized_root,
+            )
+            .await?
+            .data
+            .into())
     }
 }
 

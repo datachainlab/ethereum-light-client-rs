@@ -98,7 +98,6 @@ impl Cli {
         match self.cmd {
             Command::Init(cmd) => cmd.run(ctx).await,
             Command::Update(cmd) => cmd.run(ctx).await,
-            Command::Info(cmd) => cmd.run(ctx).await,
         }
     }
 }

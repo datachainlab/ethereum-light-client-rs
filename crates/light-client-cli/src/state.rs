@@ -37,7 +37,7 @@ impl<
         >,
     ) -> Self {
         Self {
-            latest_finalized_header: bootstrap.header.beacon,
+            latest_finalized_header: bootstrap.beacon_header,
             latest_execution_payload_header,
             current_sync_committee: bootstrap.current_sync_committee,
             next_sync_committee: None,

@@ -133,29 +133,29 @@ impl<
 
     pub async fn init_with_bootstrap(&self, trusted_block_root: Option<H256>) -> Result<()> {
         let mut bootstrap = self.chain.get_bootstrap(trusted_block_root.clone()).await?;
-        let mut block = self
-            .chain
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(bootstrap.header.beacon.slot)
-            .await?;
+        // let mut block = self
+        //     .chain
+        //     .get_beacon_block_by_slot::<
+        //     MAX_PROPOSER_SLASHINGS,
+        //     MAX_VALIDATORS_PER_COMMITTEE,
+        //     MAX_ATTESTER_SLASHINGS,
+        //     MAX_ATTESTATIONS,
+        //     DEPOSIT_CONTRACT_TREE_DEPTH,
+        //     MAX_DEPOSITS,
+        //     MAX_VOLUNTARY_EXITS,
+        //     BYTES_PER_LOGS_BLOOM,
+        //     MAX_EXTRA_DATA_BYTES,
+        //     MAX_BYTES_PER_TRANSACTION,
+        //     MAX_TRANSACTIONS_PER_PAYLOAD,
+        //     SYNC_COMMITTEE_SIZE,
+        //     >(bootstrap.beacon_header.slot)
+        //     .await?;
 
         self.verifier
             .validate_boostrap(&bootstrap, trusted_block_root)?;
-        if bootstrap.header.beacon.hash_tree_root().unwrap() != block.hash_tree_root().unwrap() {
-            panic!("finalized_root mismatch");
-        }
+        // if bootstrap.beacon_header.hash_tree_root().unwrap() != block.hash_tree_root().unwrap() {
+        //     panic!("finalized_root mismatch");
+        // }
 
         let execution_payload_header = block.body.execution_payload.to_header();
         let state = LightClientStore::from_bootstrap(bootstrap.clone(), execution_payload_header);
@@ -251,12 +251,12 @@ impl<
 
         let update = self.chain.rpc_client.get_finality_update().await?.data;
         let finality_update_period =
-            compute_sync_committee_period_at_slot(&self.ctx, update.finalized_header.beacon.slot);
+            compute_sync_committee_period_at_slot(&self.ctx, update.finalized_beacon_header.slot);
 
         if store_period != finality_update_period
-            || state.latest_finalized_header.slot >= update.finalized_header.beacon.slot
+            || state.latest_finalized_header.slot >= update.finalized_beacon_header.slot
         {
-            debug!("this finality update cannot apply to the store: store_period={} store_slot={} update_slot={}", store_period, state.latest_finalized_header.slot, update.finalized_header.beacon.slot);
+            debug!("this finality update cannot apply to the store: store_period={} store_slot={} update_slot={}", store_period, state.latest_finalized_header.slot, update.finalized_beacon_header.slot);
             return Ok(None);
         }
 
@@ -286,28 +286,28 @@ impl<
         &self,
         update: LightClientUpdate<SYNC_COMMITTEE_SIZE>,
     ) -> Result<Updates<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>> {
-        if update.finalized_header == Default::default() {
+        if update.finalized_beacon_header == Default::default() {
             return Err(Error::FinalizedHeaderNotFound);
         }
 
         // build ExecutionUpdate
-        let block = self
-            .chain
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(update.finalized_header.0.slot)
-            .await?;
+        // let block = self
+        //     .chain
+        //     .get_beacon_block_by_slot::<
+        //     MAX_PROPOSER_SLASHINGS,
+        //     MAX_VALIDATORS_PER_COMMITTEE,
+        //     MAX_ATTESTER_SLASHINGS,
+        //     MAX_ATTESTATIONS,
+        //     DEPOSIT_CONTRACT_TREE_DEPTH,
+        //     MAX_DEPOSITS,
+        //     MAX_VOLUNTARY_EXITS,
+        //     BYTES_PER_LOGS_BLOOM,
+        //     MAX_EXTRA_DATA_BYTES,
+        //     MAX_BYTES_PER_TRANSACTION,
+        //     MAX_TRANSACTIONS_PER_PAYLOAD,
+        //     SYNC_COMMITTEE_SIZE,
+        //     >(update.finalized_beacon_header.0.slot)
+        //     .await?;
 
         let execution_update = {
             let mut execution_update =
@@ -353,8 +353,8 @@ impl<
         };
 
         info!(
-            "updates: finalize_header_slot={} execution_block_number={}",
-            updates.0.finalized_header.0.slot, updates.1.block_number
+            "updates: finalized_beacon_header_slot={} execution_block_number={}",
+            updates.0.finalized_beacon_header.0.slot, updates.1.block_number
         );
 
         self.verifier
