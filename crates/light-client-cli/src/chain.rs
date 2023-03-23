@@ -1,12 +1,9 @@
 use crate::errors::Error;
 use ethereum_consensus::{
-    beacon::{Epoch, Slot},
-    compute::{compute_epoch_at_slot, compute_sync_committee_period},
     config::{self, Config},
-    context::ChainContext,
-    sync_protocol::{LightClientBootstrap, SyncCommitteePeriod},
-    types::{H256, U64},
+    types::H256,
 };
+use ethereum_light_client_verifier::updates::capella::LightClientBootstrapInfo;
 use lodestar_rpc::client::RPCClient;
 
 type Result<T> = core::result::Result<T, Error>;
@@ -29,7 +26,9 @@ impl Chain {
     >(
         &self,
         finalized_root: Option<H256>,
-    ) -> Result<LightClientBootstrap<SYNC_COMMITTEE_SIZE>> {
+    ) -> Result<
+        LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    > {
         let finalized_root = if let Some(finalized_root) = finalized_root {
             finalized_root
         } else {
@@ -40,14 +39,15 @@ impl Chain {
                 .finalized
                 .root
         };
-        Ok(self
-            .rpc_client
-            .get_bootstrap::<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>(
-                finalized_root,
-            )
-            .await?
-            .data
-            .into())
+        Ok(LightClientBootstrapInfo(
+            self.rpc_client
+                .get_bootstrap::<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>(
+                    finalized_root,
+                )
+                .await?
+                .data
+                .into(),
+        ))
     }
 }
 
@@ -78,41 +78,6 @@ impl Network {
             Network::Mainnet => config::mainnet::CONFIG,
             Network::Goerli => config::goerli::CONFIG,
             Network::Sepolia => config::sepolia::CONFIG,
-        }
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct FinalizedInfo {
-    pub latest_finalized: FinalizedPoints,
-    pub latest_attested_finalized: FinalizedPoints,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct FinalizedPoints {
-    pub slot: Slot,
-    pub epoch: Epoch,
-    pub period: SyncCommitteePeriod,
-    pub height: U64,
-}
-
-impl FinalizedPoints {
-    fn from_slot<CC: ChainContext>(ctx: &CC, slot: Slot, height: U64) -> Self {
-        let epoch = compute_epoch_at_slot(ctx, slot);
-        Self {
-            slot,
-            epoch,
-            period: compute_sync_committee_period(ctx, epoch),
-            height,
-        }
-    }
-
-    fn from_epoch<CC: ChainContext>(ctx: &CC, epoch: Epoch, height: U64) -> Self {
-        Self {
-            slot: epoch * ctx.slots_per_epoch(),
-            epoch,
-            period: compute_sync_committee_period(ctx, epoch),
-            height,
         }
     }
 }

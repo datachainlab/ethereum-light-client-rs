@@ -1,8 +1,8 @@
 use crate::errors::Error;
 use crate::types::{
-    BeaconBlockRootResponse, BeaconHeaderResponse, BellatrixBeaconBlockResponse,
-    FinalityCheckpointsResponse, GenesisDataResponse, LightClientBootstrapResponse,
-    LightClientFinalityUpdateResponse, LightClientUpdatesResponse,
+    BeaconBlockRootResponse, BeaconHeaderResponse, FinalityCheckpointsResponse,
+    GenesisDataResponse, LightClientBootstrapResponse, LightClientFinalityUpdateResponse,
+    LightClientUpdatesResponse,
 };
 use ethereum_consensus::beacon::Slot;
 use ethereum_consensus::sync_protocol::SyncCommitteePeriod;
@@ -31,42 +31,6 @@ impl RPCClient {
     pub async fn get_genesis(&self) -> Result<GenesisDataResponse> {
         self.request_get("/eth/v1/beacon/genesis").await
     }
-
-    // pub async fn get_bellatrix_beacon_block_by_slot<
-    //     const MAX_PROPOSER_SLASHINGS: usize,
-    //     const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    //     const MAX_ATTESTER_SLASHINGS: usize,
-    //     const MAX_ATTESTATIONS: usize,
-    //     const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    //     const MAX_DEPOSITS: usize,
-    //     const MAX_VOLUNTARY_EXITS: usize,
-    //     const BYTES_PER_LOGS_BLOOM: usize,
-    //     const MAX_EXTRA_DATA_BYTES: usize,
-    //     const MAX_BYTES_PER_TRANSACTION: usize,
-    //     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-    //     const SYNC_COMMITTEE_SIZE: usize,
-    // >(
-    //     &self,
-    //     slot: Slot,
-    // ) -> Result<
-    //     BellatrixBeaconBlockResponse<
-    //         MAX_PROPOSER_SLASHINGS,
-    //         MAX_VALIDATORS_PER_COMMITTEE,
-    //         MAX_ATTESTER_SLASHINGS,
-    //         MAX_ATTESTATIONS,
-    //         DEPOSIT_CONTRACT_TREE_DEPTH,
-    //         MAX_DEPOSITS,
-    //         MAX_VOLUNTARY_EXITS,
-    //         BYTES_PER_LOGS_BLOOM,
-    //         MAX_EXTRA_DATA_BYTES,
-    //         MAX_BYTES_PER_TRANSACTION,
-    //         MAX_TRANSACTIONS_PER_PAYLOAD,
-    //         SYNC_COMMITTEE_SIZE,
-    //     >,
-    // > {
-    //     self.request_get(format!("/eth/v2/beacon/blocks/{}", slot))
-    //         .await
-    // }
 
     pub async fn get_beacon_block_root(&self, slot: Slot) -> Result<BeaconBlockRootResponse> {
         self.request_get(format!("/eth/v1/beacon/blocks/{}/root", slot))

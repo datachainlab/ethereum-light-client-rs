@@ -62,7 +62,10 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
 
         self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
-        self.validate_execution_update(consensus_update.execution_root(), execution_update)?;
+        self.validate_execution_update(
+            consensus_update.finalized_execution_root(),
+            execution_update,
+        )?;
         Ok(())
     }
 
@@ -79,7 +82,13 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
     ) -> Result<(), Error> {
         let sync_committee = self.get_attestation_verifier(ctx, store, update)?;
         verify_merkle_branches_with_attested_header(ctx, update)?;
-        verify_sync_committee_attestation(ctx, update, &sync_committee)
+        verify_sync_committee_attestation(ctx, update, &sync_committee)?;
+        validate_merkle_branch(
+            update.finalized_execution_root(),
+            &update.finalized_execution_branch(),
+            BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
+            update.finalized_beacon_header().body_root.clone(),
+        )
     }
 
     /// validate an execution update with trusted/verified beacon block body
@@ -88,13 +97,6 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
-        // validate_merkle_branch(
-        //     update.payload_root(),
-        //     &update.payload_branch(),
-        //     BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
-        //     trusted_beacon_body_root,
-        // )?;
-
         validate_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
@@ -409,39 +411,25 @@ mod tests_bellatrix {
         context::{Fraction, LightClientContext},
         mock::MockStore,
         state::apply_sync_committee_update,
-        updates::bellatrix::{ConsensusUpdateInfo, ExecutionUpdateInfo},
+        updates::{
+            bellatrix::{ConsensusUpdateInfo, ExecutionUpdateInfo, LightClientBootstrapInfo},
+            LightClientBootstrap,
+        },
     };
-    use ethereum_consensus::{bls::aggreate_public_key, config::minimal, types::U64};
+    use ethereum_consensus::{
+        bls::aggreate_public_key,
+        config::{minimal, Config},
+        types::U64,
+    };
     use std::{fs, path::PathBuf};
 
     const TEST_DATA_DIR: &str = "./data";
-
-    #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-    #[serde(transparent)]
-    struct BellatrixLightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize>(
-        ethereum_consensus::bellatrix::LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
-    );
-
-    impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>
-        for BellatrixLightClientBootstrap<SYNC_COMMITTEE_SIZE>
-    {
-        fn beacon_header(&self) -> &ethereum_consensus::beacon::BeaconBlockHeader {
-            &self.0.beacon_header
-        }
-        fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
-            &self.0.current_sync_committee
-        }
-        fn current_sync_committee_branch(
-            &self,
-        ) -> [H256; ethereum_consensus::sync_protocol::CURRENT_SYNC_COMMITTEE_DEPTH] {
-            self.0.current_sync_committee_branch.clone()
-        }
-    }
+    const BELLATRIX_MINIMAL_CONFIG: Config = get_minimal_bellatrix_config(minimal::CONFIG);
 
     #[test]
     fn test_bootstrap() {
         let verifier = CurrentNextSyncProtocolVerifier::<
-            MockStore<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+            MockStore<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
         >::default();
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
         let (bootstrap, _, _) = get_init_state(path);
@@ -451,8 +439,7 @@ mod tests_bellatrix {
     #[test]
     fn test_pubkey_aggregation() {
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
-        let (bootstrap, _, _) =
-            get_init_state::<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>(path);
+        let (bootstrap, _, _) = get_init_state(path);
         let pubkeys: Vec<BLSPublicKey> = bootstrap
             .current_sync_committee()
             .pubkeys
@@ -479,7 +466,7 @@ mod tests_bellatrix {
     #[test]
     fn test_verification() {
         let verifier = CurrentNextSyncProtocolVerifier::<
-            MockStore<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+            MockStore<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
         >::default();
 
         let (bootstrap, execution_payload_state_root, genesis_validators_root) =
@@ -492,7 +479,7 @@ mod tests_bellatrix {
             execution_payload_state_root,
         );
         let ctx = LightClientContext::new_with_config(
-            minimal::CONFIG,
+            BELLATRIX_MINIMAL_CONFIG,
             genesis_validators_root,
             // NOTE: this is workaround. we must get the correct timestamp from beacon state.
             minimal::CONFIG.min_genesis_time,
@@ -527,15 +514,13 @@ mod tests_bellatrix {
     fn test_verification_with_next_committee() {
         let verifier = NextSyncProtocolVerifier::default();
         let (_, _, genesis_validators_root) =
-            get_init_state::<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>(format!(
-                "{}/initial_state.json",
-                TEST_DATA_DIR
-            ));
+            get_init_state(format!("{}/initial_state.json", TEST_DATA_DIR));
 
         let state = {
-            let (consensus_update, _) = get_updates::<{ minimal::CONFIG.preset.SYNC_COMMITTEE_SIZE }>(
-                format!("{}/light_client_update_period_5.json", TEST_DATA_DIR),
-            );
+            let (consensus_update, _) = get_updates(format!(
+                "{}/light_client_update_period_5.json",
+                TEST_DATA_DIR
+            ));
             NextSyncCommitteeView {
                 current_slot: consensus_update.light_client_update.finalized_header.0.slot,
                 next_sync_committee: consensus_update
@@ -547,10 +532,10 @@ mod tests_bellatrix {
             }
         };
         let ctx = LightClientContext::new_with_config(
-            minimal::CONFIG,
+            BELLATRIX_MINIMAL_CONFIG,
             genesis_validators_root,
             // NOTE: this is workaround. we must get the correct timestamp from beacon state.
-            minimal::CONFIG.min_genesis_time,
+            BELLATRIX_MINIMAL_CONFIG.min_genesis_time,
             Fraction::new(2, 3),
             || U64(100000000000000u64.into()),
         );
@@ -581,10 +566,10 @@ mod tests_bellatrix {
     }
 
     // returns boostrap, execution_state_root, genesis_validators_root
-    fn get_init_state<const SYNC_COMMITTEE_SIZE: usize>(
+    fn get_init_state(
         path: impl Into<PathBuf>,
     ) -> (
-        BellatrixLightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+        LightClientBootstrapInfo<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
         H256,
         H256,
     ) {
@@ -592,13 +577,18 @@ mod tests_bellatrix {
         serde_json::from_str(&s).unwrap()
     }
 
-    fn get_updates<const SYNC_COMMITTEE_SIZE: usize>(
+    fn get_updates(
         path: impl Into<PathBuf>,
     ) -> (
-        ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
+        ConsensusUpdateInfo<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
         ExecutionUpdateInfo,
     ) {
         let s = fs::read_to_string(path.into()).unwrap();
         serde_json::from_str(&s).unwrap()
+    }
+
+    const fn get_minimal_bellatrix_config(mut base_config: Config) -> Config {
+        base_config.fork_parameters.capella_fork_epoch = U64(u64::MAX);
+        base_config
     }
 }

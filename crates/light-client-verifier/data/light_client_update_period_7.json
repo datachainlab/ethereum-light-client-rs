@@ -77,8 +77,8 @@
       },
       "signature_slot": 465
     },
-    "execution_root": "0x6fcf9095c0a71804d02bf24bb2a7267fa9c89684aa12ee8a24321f7038742b22",
-    "execution_branch": [
+    "finalized_execution_root": "0x6fcf9095c0a71804d02bf24bb2a7267fa9c89684aa12ee8a24321f7038742b22",
+    "finalized_execution_branch": [
       "0x73bc762f9566bafb8625db4e713df03a205ccb49744d2d62c44600d2405772ac",
       "0xf5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b",
       "0xdb56114e00fdd4c1f85c892bf35ac9a89289aaecb1ebd0a96cde606a748b5d71",

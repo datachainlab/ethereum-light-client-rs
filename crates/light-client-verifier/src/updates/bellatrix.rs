@@ -1,20 +1,40 @@
-use super::{ConsensusUpdate, ExecutionUpdate};
+use super::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use crate::internal_prelude::*;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     bellatrix::LightClientUpdate,
     sync_protocol::{
-        SyncAggregate, SyncCommittee, EXECUTION_PAYLOAD_DEPTH, FINALIZED_ROOT_DEPTH,
-        NEXT_SYNC_COMMITTEE_DEPTH,
+        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
+        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
     },
     types::{H256, U64},
 };
 
+#[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct LightClientBootstrapInfo<const SYNC_COMMITTEE_SIZE: usize>(
+    pub ethereum_consensus::bellatrix::LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+);
+
+impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>
+    for LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE>
+{
+    fn beacon_header(&self) -> &BeaconBlockHeader {
+        &self.0.beacon_header
+    }
+    fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
+        &self.0.current_sync_committee
+    }
+    fn current_sync_committee_branch(&self) -> [H256; CURRENT_SYNC_COMMITTEE_DEPTH] {
+        self.0.current_sync_committee_branch.clone()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> {
     pub light_client_update: LightClientUpdate<SYNC_COMMITTEE_SIZE>,
-    pub execution_root: H256,
-    pub execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
+    pub finalized_execution_root: H256,
+    pub finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
@@ -41,17 +61,17 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
     fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
         self.light_client_update.finalized_header.1.clone()
     }
+    fn finalized_execution_root(&self) -> H256 {
+        self.finalized_execution_root.clone()
+    }
+    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
+        self.finalized_execution_branch.clone()
+    }
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
         &self.light_client_update.sync_aggregate
     }
     fn signature_slot(&self) -> Slot {
         self.light_client_update.signature_slot
-    }
-    fn execution_root(&self) -> H256 {
-        self.execution_root.clone()
-    }
-    fn execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
-        self.execution_branch.clone()
     }
 }
 

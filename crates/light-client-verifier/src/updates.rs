@@ -32,11 +32,11 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader;
     fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH];
 
+    fn finalized_execution_root(&self) -> H256;
+    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH];
+
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE>;
     fn signature_slot(&self) -> Slot;
-
-    fn execution_root(&self) -> H256;
-    fn execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH];
 
     fn validate_basic<C: ConsensusVerificationContext>(&self, ctx: &C) -> Result<(), Error> {
         // ensure that the finalized header is non-empty

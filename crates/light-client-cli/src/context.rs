@@ -2,24 +2,15 @@ use crate::chain::Network;
 use crate::cli::Opts;
 use crate::db::{FileDB, DB};
 use crate::{errors::Error, state::LightClientStore};
+use ethereum_consensus::capella::LightClientBootstrap;
 use ethereum_consensus::config::Config;
 use ethereum_consensus::context::ChainContext;
-use ethereum_consensus::sync_protocol::LightClientBootstrap;
 use log::*;
 
 #[derive(Debug)]
 pub struct Context<
-    const MAX_PROPOSER_SLASHINGS: usize,
-    const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    const MAX_ATTESTER_SLASHINGS: usize,
-    const MAX_ATTESTATIONS: usize,
-    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    const MAX_DEPOSITS: usize,
-    const MAX_VOLUNTARY_EXITS: usize,
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
-    const MAX_BYTES_PER_TRANSACTION: usize,
-    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
     const SYNC_COMMITTEE_SIZE: usize,
 > {
     pub(crate) config: Config,
@@ -29,33 +20,10 @@ pub struct Context<
 }
 
 impl<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
         const BYTES_PER_LOGS_BLOOM: usize,
         const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
         const SYNC_COMMITTEE_SIZE: usize,
-    >
-    Context<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        SYNC_COMMITTEE_SIZE,
-    >
+    > Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>
 {
     pub fn build(network: Network, opts: Opts) -> Result<Self, Error> {
         let home_dir = opts.home_dir();
@@ -81,7 +49,12 @@ impl<
 
     /// Store accessors
 
-    pub fn get_bootstrap(&self) -> Result<LightClientBootstrap<SYNC_COMMITTEE_SIZE>, Error> {
+    pub fn get_bootstrap(
+        &self,
+    ) -> Result<
+        LightClientBootstrap<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+        Error,
+    > {
         Ok(serde_json::from_slice(&self.db.get("bootstrap")?.ok_or(
             Error::Other {
                 description: "bootstrap not found".into(),
@@ -91,7 +64,11 @@ impl<
 
     pub fn store_boostrap(
         &self,
-        bootstrap: &LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+        bootstrap: &LightClientBootstrap<
+            SYNC_COMMITTEE_SIZE,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+        >,
     ) -> Result<(), Error> {
         let value = serde_json::to_string_pretty(bootstrap)?;
         debug!("store_bootstrap: {}", value);
@@ -124,33 +101,10 @@ impl<
 }
 
 impl<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
         const BYTES_PER_LOGS_BLOOM: usize,
         const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
         const SYNC_COMMITTEE_SIZE: usize,
-    > ChainContext
-    for Context<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        SYNC_COMMITTEE_SIZE,
-    >
+    > ChainContext for Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>
 {
     fn genesis_time(&self) -> ethereum_consensus::types::U64 {
         todo!()
