@@ -38,6 +38,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
             }
         }
         validate_merkle_branch(
+            "CurrentSyncCommittee",
             hash_tree_root(bootstrap.current_sync_committee().clone())?,
             &bootstrap.current_sync_committee_branch(),
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
@@ -84,6 +85,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         verify_merkle_branches_with_attested_header(ctx, update)?;
         verify_sync_committee_attestation(ctx, update, &sync_committee)?;
         validate_merkle_branch(
+            "FinalizedExecution",
             update.finalized_execution_root(),
             &update.finalized_execution_branch(),
             BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
@@ -98,6 +100,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         update: &EU,
     ) -> Result<(), Error> {
         validate_merkle_branch(
+            "StateRoot",
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
             EXECUTION_PAYLOAD_STATE_ROOT_INDEX as u64,
@@ -105,6 +108,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         )?;
 
         validate_merkle_branch(
+            "BlockNumber",
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
             EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX as u64,
@@ -358,6 +362,7 @@ pub fn verify_merkle_branches_with_attested_header<
         };
 
     validate_merkle_branch(
+        "FinalizedBeaconHeader",
         finalized_root,
         &consensus_update.finalized_beacon_header_branch(),
         FINALIZED_ROOT_SUBTREE_INDEX,
@@ -366,6 +371,7 @@ pub fn verify_merkle_branches_with_attested_header<
 
     if let Some(update_next_sync_committee) = consensus_update.next_sync_committee() {
         validate_merkle_branch(
+            "NextSyncCommittee",
             hash_tree_root(update_next_sync_committee.clone())?,
             consensus_update
                 .next_sync_committee_branch()
@@ -380,6 +386,7 @@ pub fn verify_merkle_branches_with_attested_header<
 }
 
 pub fn validate_merkle_branch(
+    ctx: impl Into<String>,
     leaf: H256,
     branch: &[H256],
     index: u64,
@@ -388,7 +395,7 @@ pub fn validate_merkle_branch(
     if is_valid_merkle_branch(leaf, branch, index, root) {
         Ok(())
     } else {
-        Err(Error::InvalidMerkleBranch)
+        Err(Error::InvalidMerkleBranch(ctx.into()))
     }
 }
 

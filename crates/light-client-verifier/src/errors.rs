@@ -23,8 +23,8 @@ pub enum Error {
     VerifyMembershipError(),
     /// trusted root mismatch: `expected={0:?} actual={1:?}`
     TrustedRootMismatch(Root, Root),
-    /// invalid merkle branch
-    InvalidMerkleBranch,
+    /// invalid merkle branch: `context={0}`
+    InvalidMerkleBranch(String),
     /// less than the minimal participants' `actual={0} minimal={1}`
     LessThanMinimalParticipants(usize, usize),
     /// insufficient participants: `actual={0} total={1}`
