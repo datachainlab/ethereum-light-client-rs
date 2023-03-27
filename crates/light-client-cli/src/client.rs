@@ -263,6 +263,8 @@ impl<
 
         self.verifier
             .validate_updates(vctx, state, &updates.0, &updates.1)?;
+        self.verifier
+            .ensure_relevant_update(vctx, state, &updates.0)?;
 
         let mut updated = false;
         let mut new_state = state.clone();

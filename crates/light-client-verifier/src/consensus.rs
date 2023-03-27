@@ -61,7 +61,6 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         consensus_update.validate_basic(ctx)?;
         execution_update.validate_basic()?;
 
-        self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
         self.validate_execution_update(
             consensus_update.finalized_execution_root(),
