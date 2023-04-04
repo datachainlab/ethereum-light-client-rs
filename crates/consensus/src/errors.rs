@@ -1,4 +1,4 @@
-use crate::{bls::PublicKey, internal_prelude::*};
+use crate::{beacon::Root, bls::PublicKey, internal_prelude::*, types::H256};
 use displaydoc::Display;
 
 #[derive(Debug, Display)]
@@ -21,6 +21,14 @@ pub enum Error {
     InvalidAddressLength(usize, usize),
     /// other error: `{description}`
     Other { description: String },
+}
+
+#[derive(Debug, Display)]
+pub enum MerkleError {
+    /// invalid merkle branch error: leaf={0:?} branch={1:?} index={2:?} root={3:?}
+    InvalidMerkleBranch(H256, Vec<H256>, u64, Root),
+    /// too long merkle branch error: leaf={0:?} branch={1:?} index={2:?} root={3:?}
+    TooLongMerkleBranch(H256, Vec<H256>, u64, Root),
 }
 
 #[cfg(feature = "std")]

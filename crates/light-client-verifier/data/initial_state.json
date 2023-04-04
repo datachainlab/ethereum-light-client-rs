@@ -1,13 +1,11 @@
 [
   {
-    "header": {
-      "beacon": {
-        "slot": 352,
-        "proposer_index": 4,
-        "parent_root": "0x5a8cd5aab3439b53c228be867fcf257e4af308056a8ebe666a3a186234742a23",
-        "state_root": "0xc3f3d017d18bd1507ded7c0c3646223f90fea52ed2198be5ac65f76299d3b10c",
-        "body_root": "0x4f247fcac1b9882f1be17bd0105dc433f2948c22770f3f46b8b593b3799413fd"
-      }
+    "beacon_header": {
+      "slot": 352,
+      "proposer_index": 4,
+      "parent_root": "0x5a8cd5aab3439b53c228be867fcf257e4af308056a8ebe666a3a186234742a23",
+      "state_root": "0xc3f3d017d18bd1507ded7c0c3646223f90fea52ed2198be5ac65f76299d3b10c",
+      "body_root": "0x4f247fcac1b9882f1be17bd0105dc433f2948c22770f3f46b8b593b3799413fd"
     },
     "current_sync_committee": {
       "pubkeys": [

@@ -23,7 +23,7 @@ impl ExecutionVerifier {
         let db = StorageProof::new(proof).into_memory_db::<KeccakHasher>();
         let root: primitive_types::H256 = root.into();
         let trie = TrieDBBuilder::<EIP1186Layout<KeccakHasher>>::new(&db, &root).build();
-        Ok(trie.get(key)?)
+        Ok(trie.get(&keccak_256(key))?)
     }
 
     /// check if a value corresponding to `key` exists
@@ -66,7 +66,7 @@ impl ExecutionVerifier {
         address: &Address,
         proof: Vec<Vec<u8>>,
     ) -> Result<Option<Account>, Error> {
-        if let Some(value) = self.verify(root, &keccak_256(&address.0), proof)? {
+        if let Some(value) = self.verify(root, &address.0.as_slice(), proof)? {
             Ok(Some(Account::from_rlp_bytes(&value)?))
         } else {
             Ok(None)

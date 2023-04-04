@@ -3,6 +3,7 @@ use displaydoc::Display;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Root, Slot},
     bls::PublicKey,
+    errors::MerkleError,
     sync_protocol::SyncCommitteePeriod,
 };
 use trie_db::TrieError;
@@ -23,8 +24,6 @@ pub enum Error {
     VerifyMembershipError(),
     /// trusted root mismatch: `expected={0:?} actual={1:?}`
     TrustedRootMismatch(Root, Root),
-    /// invalid merkle branch
-    InvalidMerkleBranch,
     /// less than the minimal participants' `actual={0} minimal={1}`
     LessThanMinimalParticipants(usize, usize),
     /// insufficient participants: `actual={0} total={1}`
@@ -61,6 +60,18 @@ pub enum Error {
     ExecutionValueExist,
     /// value mismatch error in execution layer: {0:?} != {1:?}
     ExecutionValueMismatch(Vec<u8>, Vec<u8>),
+    /// invalid merkle branch of finalized beacon header: `error={0}`
+    InvalidFinalizedBeaconHeaderMerkleBranch(MerkleError),
+    /// invalid merkle branch of finalized execution payload: `error={0}`
+    InvalidFinalizedExecutionPayload(MerkleError),
+    /// invalid merkle branch of next sync committee: `error={0}`
+    InvalidNextSyncCommitteeMerkleBranch(MerkleError),
+    /// invalid merkle branch of current sync committee: `error={0}`
+    InvalidCurrentSyncCommitteeMerkleBranch(MerkleError),
+    /// invalid merkle branch of execution state root: `error={0}`
+    InvalidExecutionStateRootMerkleBranch(MerkleError),
+    /// invalid merkle branch of execution block number: `error={0}`
+    InvalidExecutionBlockNumberMerkleBranch(MerkleError),
     /// other error: `{description}`
     Other { description: String },
 }

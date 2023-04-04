@@ -1,8 +1,8 @@
 use crate::errors::Error;
 use crate::types::{
-    BeaconBlockResponse, BeaconBlockRootResponse, BeaconHeaderResponse,
-    FinalityCheckpointsResponse, GenesisDataResponse, LightClientBootstrapResponse,
-    LightClientFinalityUpdateResponse, LightClientUpdatesResponse,
+    BeaconBlockRootResponse, BeaconHeaderResponse, FinalityCheckpointsResponse,
+    GenesisDataResponse, LightClientBootstrapResponse, LightClientFinalityUpdateResponse,
+    LightClientUpdatesResponse,
 };
 use ethereum_consensus::beacon::Slot;
 use ethereum_consensus::sync_protocol::SyncCommitteePeriod;
@@ -32,42 +32,6 @@ impl RPCClient {
         self.request_get("/eth/v1/beacon/genesis").await
     }
 
-    pub async fn get_beacon_block_by_slot<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
-        const BYTES_PER_LOGS_BLOOM: usize,
-        const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-        const SYNC_COMMITTEE_SIZE: usize,
-    >(
-        &self,
-        slot: Slot,
-    ) -> Result<
-        BeaconBlockResponse<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-        >,
-    > {
-        self.request_get(format!("/eth/v2/beacon/blocks/{}", slot))
-            .await
-    }
-
     pub async fn get_beacon_block_root(&self, slot: Slot) -> Result<BeaconBlockRootResponse> {
         self.request_get(format!("/eth/v1/beacon/blocks/{}/root", slot))
             .await
@@ -85,17 +49,37 @@ impl RPCClient {
 
     // Light Client API
 
-    pub async fn get_finality_update<const SYNC_COMMITTEE_SIZE: usize>(
+    pub async fn get_finality_update<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+    >(
         &self,
-    ) -> Result<LightClientFinalityUpdateResponse<SYNC_COMMITTEE_SIZE>> {
+    ) -> Result<
+        LightClientFinalityUpdateResponse<
+            SYNC_COMMITTEE_SIZE,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+        >,
+    > {
         self.request_get("/eth/v1/beacon/light_client/finality_update")
             .await
     }
 
-    pub async fn get_bootstrap<const SYNC_COMMITTEE_SIZE: usize>(
+    pub async fn get_bootstrap<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+    >(
         &self,
         finalized_root: H256,
-    ) -> Result<LightClientBootstrapResponse<SYNC_COMMITTEE_SIZE>> {
+    ) -> Result<
+        LightClientBootstrapResponse<
+            SYNC_COMMITTEE_SIZE,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+        >,
+    > {
         self.request_get(format!(
             "/eth/v1/beacon/light_client/bootstrap/0x{}",
             finalized_root
@@ -103,11 +87,17 @@ impl RPCClient {
         .await
     }
 
-    pub async fn get_light_client_updates<const SYNC_COMMITTEE_SIZE: usize>(
+    pub async fn get_light_client_updates<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+    >(
         &self,
         start_period: SyncCommitteePeriod,
         count: u64,
-    ) -> Result<LightClientUpdatesResponse<SYNC_COMMITTEE_SIZE>> {
+    ) -> Result<
+        LightClientUpdatesResponse<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    > {
         let count = if count < 1 { 1 } else { count };
         for c in (1..=count).rev() {
             let res = self
@@ -130,11 +120,17 @@ impl RPCClient {
         unreachable!()
     }
 
-    pub async fn get_light_client_updates_simple<const SYNC_COMMITTEE_SIZE: usize>(
+    pub async fn get_light_client_updates_simple<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+    >(
         &self,
         start_period: SyncCommitteePeriod,
         count: u64,
-    ) -> Result<LightClientUpdatesResponse<SYNC_COMMITTEE_SIZE>> {
+    ) -> Result<
+        LightClientUpdatesResponse<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    > {
         let count = if count < 1 { 1 } else { count };
         self.request_get(format!(
             "/eth/v1/beacon/light_client/updates?start_period={}&count={}",

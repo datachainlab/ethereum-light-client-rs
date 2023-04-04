@@ -6,24 +6,23 @@ use crate::{
 };
 use core::time::Duration;
 use ethereum_consensus::{
-    beacon::{gen_execution_payload_proof, Root, Slot},
+    beacon::{Root, Slot},
+    capella::{self, LightClientUpdate},
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
     execution::{
-        gen_execution_payload_fields_proof, BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX,
-        EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
+        BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
     },
-    sync_protocol::{LightClientUpdate, SyncCommitteePeriod},
+    sync_protocol::SyncCommitteePeriod,
     types::{H256, U64},
 };
 use ethereum_light_client_verifier::{
     consensus::{CurrentNextSyncProtocolVerifier, SyncProtocolVerifier},
     context::{ConsensusVerificationContext, Fraction, LightClientContext},
     state::apply_sync_committee_update,
-    updates::ConsensusUpdateInfo,
+    updates::capella::ConsensusUpdateInfo,
 };
 use log::*;
-use ssz_rs::Merkleized;
 type Result<T> = core::result::Result<T, Error>;
 
 type Updates<
@@ -31,38 +30,16 @@ type Updates<
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
 > = (
-    ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
-    ExecutionUpdateInfo<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    ExecutionUpdateInfo,
 );
 
 pub struct LightClient<
-    const MAX_PROPOSER_SLASHINGS: usize,
-    const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    const MAX_ATTESTER_SLASHINGS: usize,
-    const MAX_ATTESTATIONS: usize,
-    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    const MAX_DEPOSITS: usize,
-    const MAX_VOLUNTARY_EXITS: usize,
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
-    const MAX_BYTES_PER_TRANSACTION: usize,
-    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
     const SYNC_COMMITTEE_SIZE: usize,
 > {
-    ctx: Context<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        SYNC_COMMITTEE_SIZE,
-    >,
+    ctx: Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>,
     chain: Chain,
     verifier: CurrentNextSyncProtocolVerifier<
         LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
@@ -73,49 +50,13 @@ pub struct LightClient<
 }
 
 impl<
-        const MAX_PROPOSER_SLASHINGS: usize,
-        const MAX_VALIDATORS_PER_COMMITTEE: usize,
-        const MAX_ATTESTER_SLASHINGS: usize,
-        const MAX_ATTESTATIONS: usize,
-        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-        const MAX_DEPOSITS: usize,
-        const MAX_VOLUNTARY_EXITS: usize,
         const BYTES_PER_LOGS_BLOOM: usize,
         const MAX_EXTRA_DATA_BYTES: usize,
-        const MAX_BYTES_PER_TRANSACTION: usize,
-        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
         const SYNC_COMMITTEE_SIZE: usize,
-    >
-    LightClient<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        SYNC_COMMITTEE_SIZE,
-    >
+    > LightClient<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>
 {
     pub fn new(
-        ctx: Context<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-        >,
+        ctx: Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>,
         chain: Chain,
         genesis_time: U64,
         genesis_validators_root: Root,
@@ -132,33 +73,15 @@ impl<
     }
 
     pub async fn init_with_bootstrap(&self, trusted_block_root: Option<H256>) -> Result<()> {
-        let mut bootstrap = self.chain.get_bootstrap(trusted_block_root.clone()).await?;
-        let mut block = self
-            .chain
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(bootstrap.header.beacon.slot)
-            .await?;
+        let bootstrap = self.chain.get_bootstrap(trusted_block_root.clone()).await?;
 
         self.verifier
             .validate_boostrap(&bootstrap, trusted_block_root)?;
-        if bootstrap.header.beacon.hash_tree_root().unwrap() != block.hash_tree_root().unwrap() {
-            panic!("finalized_root mismatch");
-        }
 
-        let execution_payload_header = block.body.execution_payload.to_header();
-        let state = LightClientStore::from_bootstrap(bootstrap.clone(), execution_payload_header);
+        let state = LightClientStore::from_bootstrap(
+            bootstrap.clone().0,
+            bootstrap.header.execution.clone(),
+        );
         self.ctx.store_boostrap(&bootstrap)?;
         self.ctx.store_light_client_state(&state)?;
         Ok(())
@@ -249,7 +172,13 @@ impl<
         let store_period =
             compute_sync_committee_period_at_slot(&self.ctx, state.latest_finalized_header.slot);
 
-        let update = self.chain.rpc_client.get_finality_update().await?.data;
+        let update = self
+            .chain
+            .rpc_client
+            .get_finality_update::<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>(
+            )
+            .await?
+            .data;
         let finality_update_period =
             compute_sync_committee_period_at_slot(&self.ctx, update.finalized_header.beacon.slot);
 
@@ -284,53 +213,28 @@ impl<
 
     async fn build_updates(
         &self,
-        update: LightClientUpdate<SYNC_COMMITTEE_SIZE>,
+        update: LightClientUpdate<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     ) -> Result<Updates<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>> {
-        if update.finalized_header == Default::default() {
+        if update.finalized_header.beacon == Default::default() {
             return Err(Error::FinalizedHeaderNotFound);
         }
 
-        // build ExecutionUpdate
-        let block = self
-            .chain
-            .get_beacon_block_by_slot::<
-            MAX_PROPOSER_SLASHINGS,
-            MAX_VALIDATORS_PER_COMMITTEE,
-            MAX_ATTESTER_SLASHINGS,
-            MAX_ATTESTATIONS,
-            DEPOSIT_CONTRACT_TREE_DEPTH,
-            MAX_DEPOSITS,
-            MAX_VOLUNTARY_EXITS,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-            MAX_BYTES_PER_TRANSACTION,
-            MAX_TRANSACTIONS_PER_PAYLOAD,
-            SYNC_COMMITTEE_SIZE,
-            >(update.finalized_header.0.slot)
-            .await?;
-
         let execution_update = {
-            let mut execution_update =
-                ExecutionUpdateInfo::<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>::default();
-            let (_, payload_branch) = gen_execution_payload_proof(&block.body)?;
-
-            let execution_payload = block.body.execution_payload;
-            execution_update.block_number = execution_payload.block_number;
-            execution_update.state_root = execution_payload.state_root.clone();
-            execution_update.execution_payload_header = execution_payload.to_header();
-            let (_, state_root_branch) = gen_execution_payload_fields_proof(
-                &execution_update.execution_payload_header,
+            let execution_payload_header = update.finalized_header.execution.clone();
+            let (_, state_root_branch) = capella::gen_execution_payload_fields_proof(
+                &execution_payload_header,
                 &[EXECUTION_PAYLOAD_STATE_ROOT_INDEX],
             )?;
-            let (_, block_number_branch) = gen_execution_payload_fields_proof(
-                &execution_update.execution_payload_header,
+            let (_, block_number_branch) = capella::gen_execution_payload_fields_proof(
+                &execution_payload_header,
                 &[EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX],
             )?;
-
-            execution_update.state_root_branch = state_root_branch;
-            execution_update.block_number_branch = block_number_branch;
-            execution_update.payload_branch = payload_branch;
-            execution_update
+            ExecutionUpdateInfo {
+                state_root: execution_payload_header.state_root,
+                state_root_branch,
+                block_number: execution_payload_header.block_number,
+                block_number_branch,
+            }
         };
         Ok((ConsensusUpdateInfo(update), execution_update))
     }
@@ -338,7 +242,7 @@ impl<
     async fn process_light_client_update(
         &self,
         vctx: &(impl ChainContext + ConsensusVerificationContext),
-        update: LightClientUpdate<SYNC_COMMITTEE_SIZE>,
+        update: LightClientUpdate<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
         state: &LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     ) -> Result<
         Option<LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>>,
@@ -353,20 +257,26 @@ impl<
         };
 
         info!(
-            "updates: finalize_header_slot={} execution_block_number={}",
-            updates.0.finalized_header.0.slot, updates.1.block_number
+            "updates: finalized_beacon_header_slot={} execution_block_number={}",
+            updates.0.finalized_header.beacon.slot, updates.1.block_number
         );
 
         self.verifier
             .validate_updates(vctx, state, &updates.0, &updates.1)?;
+        self.verifier
+            .ensure_relevant_update(vctx, state, &updates.0)?;
 
         let mut updated = false;
         let mut new_state = state.clone();
         if apply_sync_committee_update(&self.ctx, &mut new_state, &updates.0)? {
             updated = true;
         }
-        if new_state.apply_execution_update(updates.1)? {
-            updated = true
+        if updates.0.finalized_header.execution.block_number
+            > state.latest_execution_payload_header.block_number
+        {
+            new_state.latest_execution_payload_header =
+                updates.0.finalized_header.execution.clone();
+            updated = true;
         }
 
         if updated {

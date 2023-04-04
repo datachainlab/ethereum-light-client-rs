@@ -14,6 +14,7 @@ pub const PRESET: Preset = Preset {
     MAX_ATTESTATIONS: 128,
     MAX_DEPOSITS: 16,
     MAX_VOLUNTARY_EXITS: 16,
+    MAX_BLS_TO_EXECUTION_CHANGES: 16,
     SYNC_COMMITTEE_SIZE: 32,
     EPOCHS_PER_SYNC_COMMITTEE_PERIOD: U64(8),
     MIN_SYNC_COMMITTEE_PARTICIPANTS: 1,
@@ -23,9 +24,10 @@ pub const PRESET: Preset = Preset {
     MAX_TRANSACTIONS_PER_PAYLOAD: 1048576,
     BYTES_PER_LOGS_BLOOM: 256,
     MAX_EXTRA_DATA_BYTES: 32,
+    MAX_WITHDRAWALS_PER_PAYLOAD: 4,
 };
 
-pub type BeaconBlock = crate::beacon::BeaconBlock<
+pub type BellatrixBeaconBlock = crate::bellatrix::BeaconBlock<
     { PRESET.MAX_PROPOSER_SLASHINGS },
     { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
     { PRESET.MAX_ATTESTER_SLASHINGS },
@@ -40,7 +42,29 @@ pub type BeaconBlock = crate::beacon::BeaconBlock<
     { PRESET.SYNC_COMMITTEE_SIZE },
 >;
 
-pub type ExecutionPayloadHeader = crate::execution::ExecutionPayloadHeader<
+pub type BellatrixExecutionPayloadHeader = crate::bellatrix::ExecutionPayloadHeader<
+    { PRESET.BYTES_PER_LOGS_BLOOM },
+    { PRESET.MAX_EXTRA_DATA_BYTES },
+>;
+
+pub type CapellaBeaconBlock = crate::capella::BeaconBlock<
+    { PRESET.MAX_PROPOSER_SLASHINGS },
+    { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
+    { PRESET.MAX_ATTESTER_SLASHINGS },
+    { PRESET.MAX_ATTESTATIONS },
+    { PRESET.DEPOSIT_CONTRACT_TREE_DEPTH },
+    { PRESET.MAX_DEPOSITS },
+    { PRESET.MAX_VOLUNTARY_EXITS },
+    { PRESET.BYTES_PER_LOGS_BLOOM },
+    { PRESET.MAX_EXTRA_DATA_BYTES },
+    { PRESET.MAX_BYTES_PER_TRANSACTION },
+    { PRESET.MAX_TRANSACTIONS_PER_PAYLOAD },
+    { PRESET.MAX_WITHDRAWALS_PER_PAYLOAD },
+    { PRESET.MAX_BLS_TO_EXECUTION_CHANGES },
+    { PRESET.SYNC_COMMITTEE_SIZE },
+>;
+
+pub type CapellaExecutionPayloadHeader = crate::capella::ExecutionPayloadHeader<
     { PRESET.BYTES_PER_LOGS_BLOOM },
     { PRESET.MAX_EXTRA_DATA_BYTES },
 >;
