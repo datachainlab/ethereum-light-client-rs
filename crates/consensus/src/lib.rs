@@ -17,6 +17,7 @@ pub mod context;
 pub mod errors;
 pub mod execution;
 pub mod fork;
+pub mod merkle;
 pub mod preset;
 pub mod sync_protocol;
 pub mod types;

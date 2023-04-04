@@ -358,6 +358,7 @@ mod test {
     };
     use crate::bellatrix::LightClientUpdate;
     use crate::errors::Error;
+    use crate::merkle::is_valid_merkle_branch;
     use crate::sync_protocol::SyncCommittee;
     use crate::{beacon::Root, compute::hash_tree_root, types::H256};
     use crate::{
@@ -378,9 +379,8 @@ mod test {
 
     #[test]
     fn beacon_block_serialization() {
-        use crate::{
-            beacon::is_valid_merkle_branch,
-            execution::{EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX},
+        use crate::execution::{
+            EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
         };
         let mut header: BeaconBlockHeader = serde_json::from_str(
             &fs::read_to_string("./data/goerli_bellatrix_header_4825088.json").unwrap(),
@@ -412,7 +412,8 @@ mod test {
             &payload_proof,
             9,
             block_root
-        ));
+        )
+        .is_ok());
 
         let (root, proof) = gen_execution_payload_fields_proof(
             &payload_header,

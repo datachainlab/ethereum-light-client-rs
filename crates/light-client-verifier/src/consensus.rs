@@ -5,9 +5,7 @@ use crate::misbehaviour::Misbehaviour;
 use crate::state::{NextSyncCommitteeView, SyncCommitteeView};
 use crate::updates::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use core::marker::PhantomData;
-use ethereum_consensus::beacon::{
-    is_valid_merkle_branch, Root, BLOCK_BODY_EXECUTION_PAYLOAD_INDEX, DOMAIN_SYNC_COMMITTEE,
-};
+use ethereum_consensus::beacon::{Root, BLOCK_BODY_EXECUTION_PAYLOAD_INDEX, DOMAIN_SYNC_COMMITTEE};
 use ethereum_consensus::bls::{fast_aggregate_verify, BLSPublicKey, BLSSignature};
 use ethereum_consensus::compute::{
     compute_domain, compute_epoch_at_slot, compute_fork_version, compute_signing_root,
@@ -17,6 +15,7 @@ use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
 };
+use ethereum_consensus::merkle::is_valid_merkle_branch;
 use ethereum_consensus::sync_protocol::{
     SyncCommittee, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX,
     NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
@@ -37,13 +36,14 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
                 return Err(Error::TrustedRootMismatch(trusted_block_root, root));
             }
         }
-        validate_merkle_branch(
-            "CurrentSyncCommittee",
+        is_valid_merkle_branch(
             hash_tree_root(bootstrap.current_sync_committee().clone())?,
             &bootstrap.current_sync_committee_branch(),
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
             bootstrap.beacon_header().state_root.clone(),
         )
+        .map_err(Error::InvalidCurrentSyncCommitteeMerkleBranch)?;
+        Ok(())
     }
 
     /// validates consensus update and execution update
@@ -83,13 +83,14 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         let sync_committee = self.get_attestation_verifier(ctx, store, update)?;
         verify_merkle_branches_with_attested_header(ctx, update)?;
         verify_sync_committee_attestation(ctx, update, &sync_committee)?;
-        validate_merkle_branch(
-            "FinalizedExecution",
+        is_valid_merkle_branch(
             update.finalized_execution_root(),
             &update.finalized_execution_branch(),
             BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
             update.finalized_beacon_header().body_root.clone(),
         )
+        .map_err(Error::InvalidFinalizedExecutionPayload)?;
+        Ok(())
     }
 
     /// validate an execution update with trusted/verified beacon block body
@@ -98,21 +99,21 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
-        validate_merkle_branch(
-            "StateRoot",
+        is_valid_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
             EXECUTION_PAYLOAD_STATE_ROOT_INDEX as u64,
             trusted_execution_root.clone(),
-        )?;
+        )
+        .map_err(Error::InvalidExecutionStateRootMerkleBranch)?;
 
-        validate_merkle_branch(
-            "BlockNumber",
+        is_valid_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
             EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX as u64,
             trusted_execution_root,
-        )?;
+        )
+        .map_err(Error::InvalidExecutionBlockNumberMerkleBranch)?;
 
         Ok(())
     }
@@ -360,17 +361,16 @@ pub fn verify_merkle_branches_with_attested_header<
             hash_tree_root(consensus_update.finalized_beacon_header().clone())?
         };
 
-    validate_merkle_branch(
-        "FinalizedBeaconHeader",
+    is_valid_merkle_branch(
         finalized_root,
         &consensus_update.finalized_beacon_header_branch(),
         FINALIZED_ROOT_SUBTREE_INDEX,
         consensus_update.attested_beacon_header().state_root.clone(),
-    )?;
+    )
+    .map_err(Error::InvalidFinalizedBeaconHeaderMerkleBranch)?;
 
     if let Some(update_next_sync_committee) = consensus_update.next_sync_committee() {
-        validate_merkle_branch(
-            "NextSyncCommittee",
+        is_valid_merkle_branch(
             hash_tree_root(update_next_sync_committee.clone())?,
             consensus_update
                 .next_sync_committee_branch()
@@ -378,24 +378,11 @@ pub fn verify_merkle_branches_with_attested_header<
                 .as_ref(),
             NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
             consensus_update.attested_beacon_header().state_root.clone(),
-        )?;
+        )
+        .map_err(Error::InvalidNextSyncCommitteeMerkleBranch)?;
     }
 
     Ok(())
-}
-
-pub fn validate_merkle_branch(
-    ctx: impl Into<String>,
-    leaf: H256,
-    branch: &[H256],
-    index: u64,
-    root: Root,
-) -> Result<(), Error> {
-    if is_valid_merkle_branch(leaf, branch, index, root) {
-        Ok(())
-    } else {
-        Err(Error::InvalidMerkleBranch(ctx.into()))
-    }
 }
 
 pub fn verify_bls_signatures(
