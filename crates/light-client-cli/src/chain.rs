@@ -74,10 +74,10 @@ impl Network {
 
     pub fn config(&self) -> Config {
         match self {
-            Network::Minimal => config::minimal::CONFIG,
-            Network::Mainnet => config::mainnet::CONFIG,
-            Network::Goerli => config::goerli::CONFIG,
-            Network::Sepolia => config::sepolia::CONFIG,
+            Network::Minimal => config::minimal::get_config(),
+            Network::Mainnet => config::mainnet::get_config(),
+            Network::Goerli => config::goerli::get_config(),
+            Network::Sepolia => config::sepolia::get_config(),
         }
     }
 }

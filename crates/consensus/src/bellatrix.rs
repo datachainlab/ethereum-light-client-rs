@@ -483,9 +483,9 @@ mod test {
 
         // ensure that signing_root calculation is correct
 
-        let ctx = DefaultChainContext::new_with_config(0.into(), config::mainnet::CONFIG);
+        let ctx = DefaultChainContext::new_with_config(0.into(), config::mainnet::get_config());
         let fork_version =
-            compute_fork_version(&ctx, compute_epoch_at_slot(&ctx, update.signature_slot));
+            compute_fork_version(&ctx, compute_epoch_at_slot(&ctx, update.signature_slot)).unwrap();
         let domain = compute_domain(
             &ctx,
             DOMAIN_SYNC_COMMITTEE,

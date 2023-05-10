@@ -1,4 +1,4 @@
-use crate::{beacon::Root, bls::PublicKey, internal_prelude::*, types::H256};
+use crate::{beacon::Root, bls::PublicKey, fork::ForkParameters, internal_prelude::*, types::H256};
 use displaydoc::Display;
 
 #[derive(Debug, Display)]
@@ -19,6 +19,8 @@ pub enum Error {
     BLSAggregatePublicKeyMismatch(PublicKey, PublicKey),
     /// invalid address length: `expected={0} actual={1}`
     InvalidAddressLength(usize, usize),
+    /// invalid fork parameters order: `{0:?}`
+    InvalidForkParamersOrder(ForkParameters),
     /// other error: `{description}`
     Other { description: String },
 }

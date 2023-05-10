@@ -10,7 +10,7 @@ use crate::{
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#compute_timestamp_at_slot
 pub fn compute_timestamp_at_slot<C: ChainContext>(ctx: &C, slot: Slot) -> U64 {
-    let slots_since_genesis = slot - ctx.fork_parameters().genesis_slot;
+    let slots_since_genesis = slot - ctx.fork_parameters().genesis_slot();
     ctx.genesis_time() + slots_since_genesis * ctx.seconds_per_slot()
 }
 
@@ -36,19 +36,8 @@ pub fn compute_sync_committee_period<C: ChainContext>(
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/fork.md#compute_fork_version
-pub fn compute_fork_version<C: ChainContext>(ctx: &C, epoch: Epoch) -> Version {
-    let fork_parameters = ctx.fork_parameters().clone();
-    if epoch >= fork_parameters.eip4844_fork_epoch {
-        fork_parameters.eip4844_fork_version
-    } else if epoch >= fork_parameters.capella_fork_epoch {
-        fork_parameters.capella_fork_version
-    } else if epoch >= fork_parameters.bellatrix_fork_epoch {
-        fork_parameters.bellatrix_fork_version
-    } else if epoch >= fork_parameters.altair_fork_epoch {
-        fork_parameters.altair_fork_version
-    } else {
-        fork_parameters.genesis_fork_version
-    }
+pub fn compute_fork_version<C: ChainContext>(ctx: &C, epoch: Epoch) -> Result<Version, Error> {
+    Ok(ctx.fork_parameters().compute_fork_version(epoch)?.clone())
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_fork_data_root
@@ -70,7 +59,7 @@ pub fn compute_domain<C: ChainContext>(
     genesis_validators_root: Option<Root>,
 ) -> Result<Domain, Error> {
     let fork_data_root = compute_fork_data_root(
-        fork_version.unwrap_or(ctx.fork_parameters().genesis_fork_version.clone()),
+        fork_version.unwrap_or(ctx.fork_parameters().genesis_version.clone()),
         genesis_validators_root.unwrap_or_default(),
     )?;
     let mut domain: [u8; 32] = Default::default();
