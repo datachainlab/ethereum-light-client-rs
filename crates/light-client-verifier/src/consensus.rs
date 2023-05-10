@@ -321,7 +321,7 @@ pub fn verify_sync_committee_attestation<
     let fork_version = compute_fork_version(
         ctx,
         compute_epoch_at_slot(ctx, consensus_update.signature_slot()),
-    );
+    )?;
     let domain = compute_domain(
         ctx,
         DOMAIN_SYNC_COMMITTEE,
@@ -354,12 +354,13 @@ pub fn verify_merkle_branches_with_attested_header<
     // Verify that the `finality_branch`, if present, confirms `finalized_header`
     // to match the finalized checkpoint root saved in the state of `attested_header`.
     // Note that the genesis finalized checkpoint root is represented as a zero hash.
-    let finalized_root =
-        if consensus_update.finalized_beacon_header().slot == ctx.fork_parameters().genesis_slot {
-            Default::default()
-        } else {
-            hash_tree_root(consensus_update.finalized_beacon_header().clone())?
-        };
+    let finalized_root = if consensus_update.finalized_beacon_header().slot
+        == ctx.fork_parameters().genesis_slot()
+    {
+        Default::default()
+    } else {
+        hash_tree_root(consensus_update.finalized_beacon_header().clone())?
+    };
 
     is_valid_merkle_branch(
         finalized_root,
@@ -410,19 +411,21 @@ mod tests_bellatrix {
         },
     };
     use ethereum_consensus::{
+        beacon::Version,
         bls::aggreate_public_key,
         config::{minimal, Config},
+        fork::{ForkParameter, ForkParameters},
+        preset,
         types::U64,
     };
     use std::{fs, path::PathBuf};
 
     const TEST_DATA_DIR: &str = "./data";
-    const BELLATRIX_MINIMAL_CONFIG: Config = get_minimal_bellatrix_config(minimal::CONFIG);
 
     #[test]
     fn test_bootstrap() {
         let verifier = CurrentNextSyncProtocolVerifier::<
-            MockStore<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+            MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
         let (bootstrap, _, _) = get_init_state(path);
@@ -459,7 +462,7 @@ mod tests_bellatrix {
     #[test]
     fn test_verification() {
         let verifier = CurrentNextSyncProtocolVerifier::<
-            MockStore<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+            MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
 
         let (bootstrap, execution_payload_state_root, genesis_validators_root) =
@@ -472,10 +475,10 @@ mod tests_bellatrix {
             execution_payload_state_root,
         );
         let ctx = LightClientContext::new_with_config(
-            BELLATRIX_MINIMAL_CONFIG,
+            get_minimal_bellatrix_config(),
             genesis_validators_root,
             // NOTE: this is workaround. we must get the correct timestamp from beacon state.
-            minimal::CONFIG.min_genesis_time,
+            minimal::get_config().min_genesis_time,
             Fraction::new(2, 3),
             || U64(100000000000000u64.into()),
         );
@@ -524,11 +527,13 @@ mod tests_bellatrix {
                     .0,
             }
         };
+        let config = get_minimal_bellatrix_config();
+        // NOTE: this is workaround. we must get the correct timestamp from beacon state.
+        let genesis_time = config.min_genesis_time;
         let ctx = LightClientContext::new_with_config(
-            BELLATRIX_MINIMAL_CONFIG,
+            config,
             genesis_validators_root,
-            // NOTE: this is workaround. we must get the correct timestamp from beacon state.
-            BELLATRIX_MINIMAL_CONFIG.min_genesis_time,
+            genesis_time,
             Fraction::new(2, 3),
             || U64(100000000000000u64.into()),
         );
@@ -562,7 +567,7 @@ mod tests_bellatrix {
     fn get_init_state(
         path: impl Into<PathBuf>,
     ) -> (
-        LightClientBootstrapInfo<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+        LightClientBootstrapInfo<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         H256,
         H256,
     ) {
@@ -573,15 +578,24 @@ mod tests_bellatrix {
     fn get_updates(
         path: impl Into<PathBuf>,
     ) -> (
-        ConsensusUpdateInfo<{ BELLATRIX_MINIMAL_CONFIG.preset.SYNC_COMMITTEE_SIZE }>,
+        ConsensusUpdateInfo<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         ExecutionUpdateInfo,
     ) {
         let s = fs::read_to_string(path.into()).unwrap();
         serde_json::from_str(&s).unwrap()
     }
 
-    const fn get_minimal_bellatrix_config(mut base_config: Config) -> Config {
-        base_config.fork_parameters.capella_fork_epoch = U64(u64::MAX);
-        base_config
+    fn get_minimal_bellatrix_config() -> Config {
+        Config {
+            preset: preset::minimal::PRESET,
+            fork_parameters: ForkParameters::new(
+                Version([0, 0, 0, 1]),
+                vec![
+                    ForkParameter::new(Version([2, 0, 0, 1]), U64(0)),
+                    ForkParameter::new(Version([1, 0, 0, 1]), U64(0)),
+                ],
+            ),
+            min_genesis_time: U64(1578009600),
+        }
     }
 }
