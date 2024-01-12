@@ -27,6 +27,7 @@ pub struct Preset {
     pub MAX_DEPOSITS: usize,
     pub MAX_VOLUNTARY_EXITS: usize,
     pub MAX_BLS_TO_EXECUTION_CHANGES: usize,
+    pub MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
 
     /// Execution
     /// ---------------------------------------------------------------
