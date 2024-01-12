@@ -1,7 +1,7 @@
 use crate::{
     bls::{PublicKey, Signature},
     internal_prelude::*,
-    types::{serde_hex, Bytes32, H256, U64},
+    types::{serde_hex, Address, Bytes32, H256, U64},
 };
 use ssz_rs::{Bitlist, Deserialize, List, Sized, Vector};
 use ssz_rs_derive::SimpleSerialize;
@@ -193,4 +193,31 @@ pub struct VoluntaryExit {
     /// Earliest epoch when voluntary exit can be processed
     pub epoch: Epoch,
     pub validator_index: ValidatorIndex,
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct Withdrawal {
+    pub index: U64,
+    pub validator_index: ValidatorIndex,
+    pub address: Address,
+    pub amount: Gwei,
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct BlsToExecutionChange {
+    pub validator_index: ValidatorIndex,
+    pub from_bls_public_key: PublicKey,
+    pub to_execution_address: Address,
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
+)]
+pub struct SignedBlsToExecutionChange {
+    message: BlsToExecutionChange,
+    signature: Signature,
 }

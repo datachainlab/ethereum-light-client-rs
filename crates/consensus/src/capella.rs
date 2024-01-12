@@ -1,11 +1,11 @@
 use crate::{
     beacon::{
-        Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, Gwei,
-        ProposerSlashing, Root, SignedVoluntaryExit, Slot, ValidatorIndex,
+        Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
+        Root, SignedBlsToExecutionChange, SignedVoluntaryExit, Slot, ValidatorIndex, Withdrawal,
         BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX,
     },
     bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
-    bls::{PublicKey, Signature},
+    bls::Signature,
     compute::hash_tree_root,
     errors::Error,
     execution::BlockNumber,
@@ -147,23 +147,6 @@ pub struct BeaconBlockBody<
     pub bls_to_execution_changes: List<SignedBlsToExecutionChange, MAX_BLS_TO_EXECUTION_CHANGES>,
 }
 
-#[derive(
-    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
-)]
-pub struct BlsToExecutionChange {
-    pub validator_index: ValidatorIndex,
-    pub from_bls_public_key: PublicKey,
-    pub to_execution_address: Address,
-}
-
-#[derive(
-    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
-)]
-pub struct SignedBlsToExecutionChange {
-    message: BlsToExecutionChange,
-    signature: Signature,
-}
-
 // Execution
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#executionpayload
@@ -269,16 +252,6 @@ pub struct ExecutionPayloadHeader<
     pub block_hash: H256,
     pub transactions_root: Root,
     pub withdrawals_root: Root,
-}
-
-#[derive(
-    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
-)]
-pub struct Withdrawal {
-    pub index: U64,
-    pub validator_index: ValidatorIndex,
-    pub address: Address,
-    pub amount: Gwei,
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#lightclientbootstrap
