@@ -5,7 +5,9 @@ use crate::misbehaviour::Misbehaviour;
 use crate::state::{NextSyncCommitteeView, SyncCommitteeView};
 use crate::updates::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use core::marker::PhantomData;
-use ethereum_consensus::beacon::{Root, BLOCK_BODY_EXECUTION_PAYLOAD_INDEX, DOMAIN_SYNC_COMMITTEE};
+use ethereum_consensus::beacon::{
+    Root, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX, DOMAIN_SYNC_COMMITTEE,
+};
 use ethereum_consensus::bls::{fast_aggregate_verify, BLSPublicKey, BLSSignature};
 use ethereum_consensus::compute::{
     compute_domain, compute_epoch_at_slot, compute_fork_version, compute_signing_root,
@@ -13,17 +15,23 @@ use ethereum_consensus::compute::{
 };
 use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::execution::{
-    EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
+    EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
 };
 use ethereum_consensus::merkle::is_valid_merkle_branch;
 use ethereum_consensus::sync_protocol::{
-    SyncCommittee, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX,
-    NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
+    SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
+    EXECUTION_PAYLOAD_DEPTH, FINALIZED_ROOT_DEPTH, FINALIZED_ROOT_SUBTREE_INDEX,
+    NEXT_SYNC_COMMITTEE_DEPTH, NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
 };
 use ethereum_consensus::types::H256;
 
 /// SyncProtocolVerifier is a verifier of [light client sync protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md)
-pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
+pub trait SyncProtocolVerifier<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+    ST,
+>
+{
     /// validates a LightClientBootstrap
     fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
         &self,
@@ -39,6 +47,7 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         is_valid_merkle_branch(
             hash_tree_root(bootstrap.current_sync_committee().clone())?,
             &bootstrap.current_sync_committee_branch(),
+            CURRENT_SYNC_COMMITTEE_DEPTH as u32,
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
             bootstrap.beacon_header().state_root.clone(),
         )
@@ -86,7 +95,8 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         is_valid_merkle_branch(
             update.finalized_execution_root(),
             &update.finalized_execution_branch(),
-            BLOCK_BODY_EXECUTION_PAYLOAD_INDEX as u64,
+            EXECUTION_PAYLOAD_DEPTH as u32,
+            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
             update.finalized_beacon_header().body_root.clone(),
         )
         .map_err(Error::InvalidFinalizedExecutionPayload)?;
@@ -102,7 +112,8 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         is_valid_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
-            EXECUTION_PAYLOAD_STATE_ROOT_INDEX as u64,
+            EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+            EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
             trusted_execution_root.clone(),
         )
         .map_err(Error::InvalidExecutionStateRootMerkleBranch)?;
@@ -110,7 +121,8 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
         is_valid_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
-            EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX as u64,
+            EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
             trusted_execution_root,
         )
         .map_err(Error::InvalidExecutionBlockNumberMerkleBranch)?;
@@ -154,10 +166,18 @@ pub trait SyncProtocolVerifier<const SYNC_COMMITTEE_SIZE: usize, ST> {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CurrentNextSyncProtocolVerifier<ST>(PhantomData<ST>);
+pub struct CurrentNextSyncProtocolVerifier<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+    ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
+>(PhantomData<ST>);
 
-impl<const SYNC_COMMITTEE_SIZE: usize, ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>>
-    SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, ST> for CurrentNextSyncProtocolVerifier<ST>
+impl<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+        ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
+    > SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
+    for CurrentNextSyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
 {
     fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
@@ -245,11 +265,17 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NextSyncProtocolVerifier;
+pub struct NextSyncProtocolVerifier<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+>;
 
-impl<const SYNC_COMMITTEE_SIZE: usize>
-    SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, NextSyncCommitteeView<SYNC_COMMITTEE_SIZE>>
-    for NextSyncProtocolVerifier
+impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
+    SyncProtocolVerifier<
+        SYNC_COMMITTEE_SIZE,
+        EXECUTION_PAYLOAD_TREE_DEPTH,
+        NextSyncCommitteeView<SYNC_COMMITTEE_SIZE>,
+    > for NextSyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
 {
     fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
@@ -365,6 +391,7 @@ pub fn verify_merkle_branches_with_attested_header<
     is_valid_merkle_branch(
         finalized_root,
         &consensus_update.finalized_beacon_header_branch(),
+        FINALIZED_ROOT_DEPTH as u32,
         FINALIZED_ROOT_SUBTREE_INDEX,
         consensus_update.attested_beacon_header().state_root.clone(),
     )
@@ -373,10 +400,8 @@ pub fn verify_merkle_branches_with_attested_header<
     if let Some(update_next_sync_committee) = consensus_update.next_sync_committee() {
         is_valid_merkle_branch(
             hash_tree_root(update_next_sync_committee.clone())?,
-            consensus_update
-                .next_sync_committee_branch()
-                .unwrap()
-                .as_ref(),
+            &consensus_update.next_sync_committee_branch().unwrap(),
+            NEXT_SYNC_COMMITTEE_DEPTH as u32,
             NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
             consensus_update.attested_beacon_header().state_root.clone(),
         )
@@ -412,6 +437,7 @@ mod tests_bellatrix {
     };
     use ethereum_consensus::{
         beacon::Version,
+        bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
         bls::aggreate_public_key,
         config::{minimal, Config},
         fork::{ForkParameter, ForkParameters},
@@ -425,6 +451,8 @@ mod tests_bellatrix {
     #[test]
     fn test_bootstrap() {
         let verifier = CurrentNextSyncProtocolVerifier::<
+            { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
+            EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
@@ -462,6 +490,8 @@ mod tests_bellatrix {
     #[test]
     fn test_verification() {
         let verifier = CurrentNextSyncProtocolVerifier::<
+            { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
+            EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
 
@@ -508,7 +538,10 @@ mod tests_bellatrix {
 
     #[test]
     fn test_verification_with_next_committee() {
-        let verifier = NextSyncProtocolVerifier::default();
+        let verifier = NextSyncProtocolVerifier::<
+            { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
+            EXECUTION_PAYLOAD_TREE_DEPTH,
+        >::default();
         let (_, _, genesis_validators_root) =
             get_init_state(format!("{}/initial_state.json", TEST_DATA_DIR));
 

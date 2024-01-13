@@ -7,11 +7,13 @@ use crate::{
 use core::time::Duration;
 use ethereum_consensus::{
     beacon::{Root, Slot},
+    bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
     capella::{self, LightClientUpdate},
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
     execution::{
-        BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
+        BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+        EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
     },
     sync_protocol::SyncCommitteePeriod,
     types::{H256, U64},
@@ -42,6 +44,8 @@ pub struct LightClient<
     ctx: Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>,
     chain: Chain,
     verifier: CurrentNextSyncProtocolVerifier<
+        SYNC_COMMITTEE_SIZE,
+        EXECUTION_PAYLOAD_TREE_DEPTH,
         LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     >,
     genesis_time: U64,
@@ -221,19 +225,19 @@ impl<
 
         let execution_update = {
             let execution_payload_header = update.finalized_header.execution.clone();
-            let (_, state_root_branch) = capella::gen_execution_payload_fields_proof(
+            let (_, state_root_branch) = capella::gen_execution_payload_field_proof(
                 &execution_payload_header,
-                &[EXECUTION_PAYLOAD_STATE_ROOT_INDEX],
+                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
             )?;
-            let (_, block_number_branch) = capella::gen_execution_payload_fields_proof(
+            let (_, block_number_branch) = capella::gen_execution_payload_field_proof(
                 &execution_payload_header,
-                &[EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX],
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
             )?;
             ExecutionUpdateInfo {
                 state_root: execution_payload_header.state_root,
-                state_root_branch,
+                state_root_branch: state_root_branch.to_vec(),
                 block_number: execution_payload_header.block_number,
-                block_number_branch,
+                block_number_branch: block_number_branch.to_vec(),
             }
         };
         Ok((ConsensusUpdateInfo(update), execution_update))
