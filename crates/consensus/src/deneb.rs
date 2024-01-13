@@ -366,6 +366,7 @@ pub fn gen_execution_payload_proof<
         Default::default(),
         Default::default(),
     ]);
+    assert_eq!(tree.leaves_len(), 16);
     Ok((
         H256(tree.root().unwrap()),
         tree.proof(&[9])
