@@ -1,6 +1,9 @@
 use crate::{beacon::Root, errors::MerkleError, internal_prelude::*, types::H256};
 use sha2::{Digest, Sha256};
 
+/// MerkleTree is a merkle tree implementation using sha256 as a hashing algorithm.
+pub type MerkleTree = rs_merkle::MerkleTree<rs_merkle::algorithms::Sha256>;
+
 /// Check if ``leaf`` at ``index`` verifies against the Merkle ``root`` and ``branch``.
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#is_valid_merkle_branch
 pub fn is_valid_merkle_branch(

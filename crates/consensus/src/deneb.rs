@@ -8,6 +8,7 @@ use crate::{
     errors::Error,
     execution::BlockNumber,
     internal_prelude::*,
+    merkle::MerkleTree,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
         FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
@@ -346,27 +347,29 @@ pub fn gen_execution_payload_proof<
         MAX_BLOB_COMMITMENTS_PER_BLOCK,
     >,
 ) -> Result<(Root, Vec<H256>), Error> {
-    let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&[
-        hash_tree_root(body.randao_reveal.clone()).unwrap().0,
-        hash_tree_root(body.eth1_data.clone()).unwrap().0,
-        body.graffiti.0,
-        hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
-        hash_tree_root(body.attester_slashings.clone()).unwrap().0,
-        hash_tree_root(body.attestations.clone()).unwrap().0,
-        hash_tree_root(body.deposits.clone()).unwrap().0,
-        hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
-        hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
-        hash_tree_root(body.execution_payload.clone()).unwrap().0,
-        hash_tree_root(body.bls_to_execution_changes.clone())
-            .unwrap()
-            .0,
-        hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-    ]);
-    assert_eq!(tree.leaves_len(), 16);
+    let tree = MerkleTree::from_leaves(
+        ([
+            hash_tree_root(body.randao_reveal.clone()).unwrap().0,
+            hash_tree_root(body.eth1_data.clone()).unwrap().0,
+            body.graffiti.0,
+            hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
+            hash_tree_root(body.attester_slashings.clone()).unwrap().0,
+            hash_tree_root(body.attestations.clone()).unwrap().0,
+            hash_tree_root(body.deposits.clone()).unwrap().0,
+            hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
+            hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
+            hash_tree_root(body.execution_payload.clone()).unwrap().0,
+            hash_tree_root(body.bls_to_execution_changes.clone())
+                .unwrap()
+                .0,
+            hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ] as [_; 16])
+            .as_ref(),
+    );
     Ok((
         H256(tree.root().unwrap()),
         tree.proof(&[9])
@@ -384,41 +387,43 @@ pub fn gen_execution_payload_fields_proof<
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     leaf_indices: &[usize],
 ) -> Result<(Root, Vec<H256>), Error> {
-    let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&[
-        payload.parent_hash.0,
-        hash_tree_root(payload.fee_recipient.clone()).unwrap().0,
-        payload.state_root.0,
-        payload.receipts_root.0,
-        hash_tree_root(payload.logs_bloom.clone()).unwrap().0,
-        payload.prev_randao.0,
-        hash_tree_root(payload.block_number).unwrap().0,
-        hash_tree_root(payload.gas_limit).unwrap().0,
-        hash_tree_root(payload.gas_used).unwrap().0,
-        hash_tree_root(payload.timestamp).unwrap().0,
-        hash_tree_root(payload.extra_data.clone()).unwrap().0,
-        hash_tree_root(payload.base_fee_per_gas.clone()).unwrap().0,
-        payload.block_hash.0,
-        payload.transactions_root.0,
-        payload.withdrawals_root.0,
-        hash_tree_root(payload.blob_gas_used).unwrap().0,
-        hash_tree_root(payload.excess_blob_gas).unwrap().0,
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-    ]);
-    assert_eq!(tree.leaves_len(), 32);
+    let tree = MerkleTree::from_leaves(
+        ([
+            payload.parent_hash.0,
+            hash_tree_root(payload.fee_recipient.clone()).unwrap().0,
+            payload.state_root.0,
+            payload.receipts_root.0,
+            hash_tree_root(payload.logs_bloom.clone()).unwrap().0,
+            payload.prev_randao.0,
+            hash_tree_root(payload.block_number).unwrap().0,
+            hash_tree_root(payload.gas_limit).unwrap().0,
+            hash_tree_root(payload.gas_used).unwrap().0,
+            hash_tree_root(payload.timestamp).unwrap().0,
+            hash_tree_root(payload.extra_data.clone()).unwrap().0,
+            hash_tree_root(payload.base_fee_per_gas.clone()).unwrap().0,
+            payload.block_hash.0,
+            payload.transactions_root.0,
+            payload.withdrawals_root.0,
+            hash_tree_root(payload.blob_gas_used).unwrap().0,
+            hash_tree_root(payload.excess_blob_gas).unwrap().0,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ] as [_; 32])
+            .as_ref(),
+    );
     Ok((
         H256(tree.root().unwrap()),
         tree.proof(leaf_indices)
