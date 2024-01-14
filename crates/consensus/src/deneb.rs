@@ -18,6 +18,9 @@ use crate::{
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
+/// Execution payload tree depth
+pub const EXECUTION_PAYLOAD_TREE_DEPTH: usize = 5;
+
 /// Beacon Block
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconblock
 #[derive(
