@@ -1,7 +1,7 @@
 use crate::{
     beacon::{
         Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
-        Root, SignedVoluntaryExit, Slot, ValidatorIndex,
+        Root, SignedVoluntaryExit, Slot, ValidatorIndex, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX,
     },
     bls::Signature,
     compute::hash_tree_root,
@@ -9,13 +9,16 @@ use crate::{
     execution::BlockNumber,
     internal_prelude::*,
     sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, FINALIZED_ROOT_DEPTH,
-        NEXT_SYNC_COMMITTEE_DEPTH,
+        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
+        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
     },
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
+
+/// Execution payload tree depth
+pub const EXECUTION_PAYLOAD_TREE_DEPTH: usize = 4;
 
 /// Beacon Block
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconblock
@@ -287,7 +290,7 @@ pub fn gen_execution_payload_proof<
         MAX_TRANSACTIONS_PER_PAYLOAD,
         SYNC_COMMITTEE_SIZE,
     >,
-) -> Result<(Root, Vec<H256>), Error> {
+) -> Result<(Root, [H256; EXECUTION_PAYLOAD_DEPTH]), Error> {
     let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&[
         hash_tree_root(body.randao_reveal.clone()).unwrap().0,
         hash_tree_root(body.eth1_data.clone()).unwrap().0,
@@ -306,23 +309,25 @@ pub fn gen_execution_payload_proof<
         Default::default(),
         Default::default(),
     ]);
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(&[9])
+    let mut branch = [Default::default(); EXECUTION_PAYLOAD_DEPTH];
+    branch.copy_from_slice(
+        tree.proof(&[BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX])
             .proof_hashes()
             .into_iter()
             .map(|h| H256::from_slice(h))
-            .collect(),
-    ))
+            .collect::<Vec<H256>>()
+            .as_slice(),
+    );
+    Ok((H256(tree.root().unwrap()), branch))
 }
 
-pub fn gen_execution_payload_fields_proof<
+pub fn gen_execution_payload_field_proof<
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    leaf_indices: &[usize],
-) -> Result<(Root, Vec<H256>), Error> {
+    leaf_index: usize,
+) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH]), Error> {
     let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Sha256>::from_leaves(&[
         payload.parent_hash.0,
         hash_tree_root(payload.fee_recipient.clone()).unwrap().0,
@@ -341,26 +346,27 @@ pub fn gen_execution_payload_fields_proof<
         Default::default(),
         Default::default(),
     ]);
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(leaf_indices)
+    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH];
+    branch.copy_from_slice(
+        tree.proof(&[leaf_index])
             .proof_hashes()
             .into_iter()
             .map(|h| H256::from_slice(h))
-            .collect(),
-    ))
+            .collect::<Vec<H256>>()
+            .as_slice(),
+    );
+    Ok((H256(tree.root().unwrap()), branch))
 }
 
 #[cfg(test)]
 mod test {
     use super::{
-        gen_execution_payload_fields_proof, gen_execution_payload_proof, BeaconBlockHeader,
+        gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
     };
-    use crate::bellatrix::LightClientUpdate;
-    use crate::errors::Error;
+    use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
+    use crate::bellatrix::{LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH};
     use crate::merkle::is_valid_merkle_branch;
-    use crate::sync_protocol::SyncCommittee;
-    use crate::{beacon::Root, compute::hash_tree_root, types::H256};
+    use crate::sync_protocol::{SyncCommittee, EXECUTION_PAYLOAD_DEPTH};
     use crate::{
         beacon::DOMAIN_SYNC_COMMITTEE,
         bls::fast_aggregate_verify,
@@ -371,16 +377,15 @@ mod test {
         context::DefaultChainContext,
         preset,
     };
+    use crate::{compute::hash_tree_root, types::H256};
     pub use milagro_bls::PublicKey as BLSPublicKey;
-    use rs_merkle::algorithms::Sha256;
-    use rs_merkle::MerkleProof;
     use ssz_rs::Merkleized;
     use std::fs;
 
     #[test]
     fn beacon_block_serialization() {
         use crate::execution::{
-            EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
+            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
         };
         let mut header: BeaconBlockHeader = serde_json::from_str(
             &fs::read_to_string("./data/goerli_bellatrix_header_4825088.json").unwrap(),
@@ -410,50 +415,49 @@ mod test {
         assert!(is_valid_merkle_branch(
             H256::from_slice(payload_root.as_bytes()),
             &payload_proof,
-            9,
+            EXECUTION_PAYLOAD_DEPTH as u32,
+            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
             block_root
         )
         .is_ok());
 
-        let (root, proof) = gen_execution_payload_fields_proof(
-            &payload_header,
-            &[
-                EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX,
-            ],
-        )
-        .unwrap();
-        assert_eq!(root.as_bytes(), payload_root.as_bytes());
+        {
+            let (root, proof) = gen_execution_payload_field_proof(
+                &payload_header,
+                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+            )
+            .unwrap();
+            assert_eq!(root.as_bytes(), payload_root.as_bytes());
 
-        assert!(is_valid_multiproofs_branch(
-            root,
-            &proof,
-            &[
-                EXECUTION_PAYLOAD_STATE_ROOT_INDEX,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_INDEX
-            ],
-            &[
+            assert!(is_valid_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
+                &proof,
+                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
+                root,
+            )
+            .is_ok());
+        }
+        {
+            let (root, proof) = gen_execution_payload_field_proof(
+                &payload_header,
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+            )
+            .unwrap();
+            assert_eq!(root.as_bytes(), payload_root.as_bytes());
+
+            assert!(is_valid_merkle_branch(
                 hash_tree_root(payload_header.block_number)
                     .unwrap()
                     .0
-                    .into()
-            ]
-        )
-        .unwrap());
-    }
-
-    fn is_valid_multiproofs_branch(
-        root: Root,
-        proof: &[H256],
-        leaf_indices: &[usize],
-        leaf_hashes: &[H256],
-    ) -> Result<bool, Error> {
-        let proof: Vec<[u8; 32]> = proof.iter().map(|h| h.0.clone()).collect();
-        let proof = MerkleProof::<Sha256>::new(proof);
-        let leaf_hashes: Vec<[u8; 32]> = leaf_hashes.iter().map(|h| h.0.clone()).collect();
-        // TODO execution payload specific
-        Ok(proof.verify(root.0, leaf_indices, &leaf_hashes, 16))
+                    .into(),
+                &proof,
+                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
+                root,
+            )
+            .is_ok());
+        }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]

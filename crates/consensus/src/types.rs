@@ -7,7 +7,15 @@ use ssz_rs::{Deserialize, List};
 use ssz_rs_derive::SimpleSerialize;
 
 #[derive(
-    Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Default,
+    SimpleSerialize,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 #[serde(transparent)]
 pub struct H256(#[serde(with = "serde_hex")] pub [u8; 32]);

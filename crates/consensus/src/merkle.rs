@@ -6,9 +6,20 @@ use sha2::{Digest, Sha256};
 pub fn is_valid_merkle_branch(
     leaf: H256,
     branch: &[H256],
-    index: u64,
+    depth: u32,
+    leaf_index: u64,
     root: Root,
 ) -> Result<(), MerkleError> {
+    if depth != branch.len() as u32 {
+        return Err(MerkleError::InvalidMerkleBranchLength(
+            depth,
+            leaf,
+            branch.to_vec(),
+            leaf_index,
+            root,
+        ));
+    }
+    let index = 2u64.pow(depth) + leaf_index;
     let mut value = leaf.clone();
     for (i, b) in branch.iter().enumerate() {
         if let Some(v) = 2u64.checked_pow(i as u32) {
@@ -18,7 +29,8 @@ pub fn is_valid_merkle_branch(
                 value = hash([value.as_bytes(), b.as_bytes()].concat());
             }
         } else {
-            return Err(MerkleError::TooLongMerkleBranch(
+            return Err(MerkleError::TooLongMerkleBranchLength(
+                depth,
                 leaf,
                 branch.to_vec(),
                 index,

@@ -29,8 +29,10 @@ pub enum Error {
 pub enum MerkleError {
     /// invalid merkle branch error: leaf={0:?} branch={1:?} index={2:?} root={3:?}
     InvalidMerkleBranch(H256, Vec<H256>, u64, Root),
-    /// too long merkle branch error: leaf={0:?} branch={1:?} index={2:?} root={3:?}
-    TooLongMerkleBranch(H256, Vec<H256>, u64, Root),
+    /// too long merkle branch error: depth={0:?} leaf={1:?} branch={2:?} index={3:?} root={4:?}
+    TooLongMerkleBranchLength(u32, H256, Vec<H256>, u64, Root),
+    /// invalid merkle branch length error: depth={0:?} leaf={1:?} branch={2:?} index={3:?} root={4:?}
+    InvalidMerkleBranchLength(u32, H256, Vec<H256>, u64, Root),
 }
 
 #[cfg(feature = "std")]
