@@ -11,6 +11,7 @@ use ethereum_consensus::{
 };
 pub mod bellatrix;
 pub mod capella;
+pub mod deneb;
 
 pub trait LightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize>:
     core::fmt::Debug + Clone + PartialEq + Eq
