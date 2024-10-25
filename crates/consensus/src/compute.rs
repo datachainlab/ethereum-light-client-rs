@@ -87,3 +87,29 @@ pub fn compute_signing_root(header: BeaconBlockHeader, domain: Domain) -> Result
 pub fn hash_tree_root<T: ssz_rs::SimpleSerialize>(mut object: T) -> Result<Root, Error> {
     Ok(H256::from_slice(object.hash_tree_root()?.as_bytes()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{config::Config, context::DefaultChainContext, fork::ForkParameters, preset};
+
+    #[test]
+    fn test_compute_timestamp_at_slot() {
+        let ctx = DefaultChainContext::new_with_config(1729846322.into(), get_minimal_config());
+        assert_eq!(compute_timestamp_at_slot(&ctx, 0.into()), 1729846322.into());
+        assert_eq!(compute_timestamp_at_slot(&ctx, 1.into()), 1729846328.into());
+        assert_eq!(compute_timestamp_at_slot(&ctx, 2.into()), 1729846334.into());
+
+        assert_eq!(compute_slot_at_timestamp(&ctx, 1729846322.into()), 0.into());
+        assert_eq!(compute_slot_at_timestamp(&ctx, 1729846328.into()), 1.into());
+        assert_eq!(compute_slot_at_timestamp(&ctx, 1729846334.into()), 2.into());
+    }
+
+    fn get_minimal_config() -> Config {
+        Config {
+            preset: preset::minimal::PRESET,
+            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]),
+            min_genesis_time: U64(1578009600),
+        }
+    }
+}
