@@ -24,6 +24,7 @@ use ethereum_light_client_verifier::{
     updates::deneb::ConsensusUpdateInfo,
 };
 use log::*;
+use std::time::SystemTime;
 type Result<T> = core::result::Result<T, Error>;
 
 type Updates<
@@ -296,7 +297,11 @@ impl<
             self.genesis_validators_root.clone(),
             self.genesis_time,
             self.trust_level.clone(),
-            || U64(1000000000000),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .into(),
         )
     }
 }
