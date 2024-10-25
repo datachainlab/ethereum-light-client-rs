@@ -7,10 +7,9 @@ use crate::{
 use core::time::Duration;
 use ethereum_consensus::{
     beacon::{Root, Slot},
-    bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
-    capella::{self, LightClientUpdate},
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
+    deneb::{self, LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH},
     execution::{
         BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
         EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
@@ -19,10 +18,10 @@ use ethereum_consensus::{
     types::{H256, U64},
 };
 use ethereum_light_client_verifier::{
-    consensus::{CurrentNextSyncProtocolVerifier, SyncProtocolVerifier},
+    consensus::SyncProtocolVerifier,
     context::{ConsensusVerificationContext, Fraction, LightClientContext},
     state::apply_sync_committee_update,
-    updates::capella::ConsensusUpdateInfo,
+    updates::deneb::ConsensusUpdateInfo,
 };
 use log::*;
 type Result<T> = core::result::Result<T, Error>;
@@ -43,7 +42,7 @@ pub struct LightClient<
 > {
     ctx: Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>,
     chain: Chain,
-    verifier: CurrentNextSyncProtocolVerifier<
+    verifier: SyncProtocolVerifier<
         SYNC_COMMITTEE_SIZE,
         EXECUTION_PAYLOAD_TREE_DEPTH,
         LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
@@ -225,11 +224,11 @@ impl<
 
         let execution_update = {
             let execution_payload_header = update.finalized_header.execution.clone();
-            let (_, state_root_branch) = capella::gen_execution_payload_field_proof(
+            let (_, state_root_branch) = deneb::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
             )?;
-            let (_, block_number_branch) = capella::gen_execution_payload_field_proof(
+            let (_, block_number_branch) = deneb::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
             )?;

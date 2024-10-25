@@ -2,7 +2,7 @@ use crate::context::ConsensusVerificationContext;
 use crate::errors::{Error, MisbehaviourError};
 use crate::internal_prelude::*;
 use crate::misbehaviour::Misbehaviour;
-use crate::state::{NextSyncCommitteeView, SyncCommitteeView};
+use crate::state::SyncCommitteeView;
 use crate::updates::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use core::marker::PhantomData;
 use ethereum_consensus::beacon::{
@@ -26,14 +26,21 @@ use ethereum_consensus::sync_protocol::{
 use ethereum_consensus::types::H256;
 
 /// SyncProtocolVerifier is a verifier of [light client sync protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md)
-pub trait SyncProtocolVerifier<
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SyncProtocolVerifier<
     const SYNC_COMMITTEE_SIZE: usize,
     const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
-    ST,
->
+    ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
+>(PhantomData<ST>);
+
+impl<
+        const SYNC_COMMITTEE_SIZE: usize,
+        const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
+        ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
+    > SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
 {
     /// validates a LightClientBootstrap
-    fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
+    pub fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
         &self,
         bootstrap: &LB,
         trusted_block_root: Option<Root>,
@@ -56,7 +63,7 @@ pub trait SyncProtocolVerifier<
     }
 
     /// validates consensus update and execution update
-    fn validate_updates<
+    pub fn validate_updates<
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
         EU: ExecutionUpdate,
@@ -80,7 +87,7 @@ pub trait SyncProtocolVerifier<
 
     /// validate a consensus update with a committee from the trusted store
     /// follow the light client protocol in the consensus spec
-    fn validate_consensus_update<
+    pub fn validate_consensus_update<
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
     >(
@@ -104,7 +111,7 @@ pub trait SyncProtocolVerifier<
     }
 
     /// validate an execution update with trusted/verified beacon block body
-    fn validate_execution_update<EU: ExecutionUpdate>(
+    pub fn validate_execution_update<EU: ExecutionUpdate>(
         &self,
         trusted_execution_root: Root,
         update: &EU,
@@ -132,7 +139,7 @@ pub trait SyncProtocolVerifier<
 
     /// validates a misbehaviour with the store.
     /// it returns `Ok` if the misbehaviour is valid
-    fn validate_misbehaviour<
+    pub fn validate_misbehaviour<
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
     >(
@@ -149,37 +156,7 @@ pub trait SyncProtocolVerifier<
     }
 
     /// ensure that the consensus update is relevant
-    fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        ctx: &CC,
-        store: &ST,
-        update: &CU,
-    ) -> Result<(), Error>;
-
-    /// returns a committee that needs to verify the update
-    fn get_attestation_verifier<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        ctx: &CC,
-        store: &ST,
-        update: &CU,
-    ) -> Result<SyncCommittee<SYNC_COMMITTEE_SIZE>, Error>;
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CurrentNextSyncProtocolVerifier<
-    const SYNC_COMMITTEE_SIZE: usize,
-    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
-    ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
->(PhantomData<ST>);
-
-impl<
-        const SYNC_COMMITTEE_SIZE: usize,
-        const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
-        ST: SyncCommitteeView<SYNC_COMMITTEE_SIZE>,
-    > SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
-    for CurrentNextSyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
-{
-    fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
+    pub fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
         ctx: &CC,
         store: &ST,
@@ -236,7 +213,8 @@ impl<
         Ok(())
     }
 
-    fn get_attestation_verifier<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
+    /// returns a committee that needs to verify the update
+    pub fn get_attestation_verifier<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
         ctx: &CC,
         store: &ST,
@@ -261,67 +239,6 @@ impl<
             ));
         };
         Ok(sync_committee.clone())
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct NextSyncProtocolVerifier<
-    const SYNC_COMMITTEE_SIZE: usize,
-    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
->;
-
-impl<const SYNC_COMMITTEE_SIZE: usize, const EXECUTION_PAYLOAD_TREE_DEPTH: usize>
-    SyncProtocolVerifier<
-        SYNC_COMMITTEE_SIZE,
-        EXECUTION_PAYLOAD_TREE_DEPTH,
-        NextSyncCommitteeView<SYNC_COMMITTEE_SIZE>,
-    > for NextSyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH>
-{
-    fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        _: &CC,
-        _: &NextSyncCommitteeView<SYNC_COMMITTEE_SIZE>,
-        _: &CU,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn get_attestation_verifier<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        ctx: &CC,
-        store: &NextSyncCommitteeView<SYNC_COMMITTEE_SIZE>,
-        update: &CU,
-    ) -> Result<SyncCommittee<SYNC_COMMITTEE_SIZE>, Error> {
-        let store_period = compute_sync_committee_period_at_slot(ctx, store.current_slot);
-        let update_signature_period =
-            compute_sync_committee_period_at_slot(ctx, update.signature_slot());
-        let update_finalized_period =
-            compute_sync_committee_period_at_slot(ctx, update.finalized_beacon_header().slot);
-        let update_attested_period =
-            compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);
-
-        if update_signature_period != store_period + 1 {
-            return Err(Error::InvalidSingaturePeriod(
-                store_period,
-                update_signature_period,
-                "signature period must be equal to store_period+1".into(),
-            ));
-        }
-        if update_finalized_period != store_period + 1 {
-            return Err(Error::InvalidFinalizedPeriod(
-                store_period,
-                update_finalized_period,
-                "finalized period must be equal to store_period+1".into(),
-            ));
-        }
-        if update_finalized_period != update_attested_period {
-            return Err(Error::NotFinalizedUpdate(
-                update_finalized_period,
-                update_attested_period,
-            ));
-        }
-
-        Ok(store.next_sync_committee.clone())
     }
 }
 
@@ -450,7 +367,7 @@ mod tests_bellatrix {
 
     #[test]
     fn test_bootstrap() {
-        let verifier = CurrentNextSyncProtocolVerifier::<
+        let verifier = SyncProtocolVerifier::<
             { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
             EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
@@ -489,7 +406,7 @@ mod tests_bellatrix {
 
     #[test]
     fn test_verification() {
-        let verifier = CurrentNextSyncProtocolVerifier::<
+        let verifier = SyncProtocolVerifier::<
             { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
             EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
@@ -533,66 +450,6 @@ mod tests_bellatrix {
                 .is_ok());
             let res = apply_sync_committee_update(&ctx, &mut store, &consensus_update);
             assert!(res.is_ok() && res.unwrap());
-        }
-    }
-
-    #[test]
-    fn test_verification_with_next_committee() {
-        let verifier = NextSyncProtocolVerifier::<
-            { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
-            EXECUTION_PAYLOAD_TREE_DEPTH,
-        >::default();
-        let (_, _, genesis_validators_root) =
-            get_init_state(format!("{}/initial_state.json", TEST_DATA_DIR));
-
-        let state = {
-            let (consensus_update, _) = get_updates(format!(
-                "{}/light_client_update_period_5.json",
-                TEST_DATA_DIR
-            ));
-            NextSyncCommitteeView {
-                current_slot: consensus_update.light_client_update.finalized_header.0.slot,
-                next_sync_committee: consensus_update
-                    .light_client_update
-                    .next_sync_committee
-                    .clone()
-                    .unwrap()
-                    .0,
-            }
-        };
-        let config = get_minimal_bellatrix_config();
-        // NOTE: this is workaround. we must get the correct timestamp from beacon state.
-        let genesis_time = config.min_genesis_time;
-        let ctx = LightClientContext::new_with_config(
-            config,
-            genesis_validators_root,
-            genesis_time,
-            Fraction::new(2, 3),
-            || U64(100000000000000u64.into()),
-        );
-
-        let valid_cases = [
-            "light_client_update_period_6.json",
-            "finality_update_period_6.json",
-        ];
-        let invalid_cases = [
-            "light_client_update_period_5.json",
-            "light_client_update_period_7.json",
-            "finality_update_period_7.json",
-            "finality_update_period_8.json",
-        ];
-
-        for c in valid_cases.iter() {
-            let (consensus_update, execution_update) =
-                get_updates(format!("{}/{}", TEST_DATA_DIR, c));
-            let res = verifier.validate_updates(&ctx, &state, &consensus_update, &execution_update);
-            assert!(res.is_ok());
-        }
-
-        for c in invalid_cases.iter() {
-            let (update, _) = get_updates(format!("{}/{}", TEST_DATA_DIR, c));
-            let res = verifier.validate_consensus_update(&ctx, &state, &update);
-            assert!(res.is_err());
         }
     }
 

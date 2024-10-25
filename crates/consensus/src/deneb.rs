@@ -383,13 +383,13 @@ pub fn gen_execution_payload_proof<
     ))
 }
 
-pub fn gen_execution_payload_fields_proof<
+pub fn gen_execution_payload_field_proof<
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    leaf_indices: &[usize],
-) -> Result<(Root, Vec<H256>), Error> {
+    leaf_index: usize,
+) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH]), Error> {
     let tree = MerkleTree::from_leaves(
         ([
             payload.parent_hash.0,
@@ -427,12 +427,14 @@ pub fn gen_execution_payload_fields_proof<
         ] as [_; 32])
             .as_ref(),
     );
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(leaf_indices)
+    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH];
+    branch.copy_from_slice(
+        tree.proof(&[leaf_index])
             .proof_hashes()
             .into_iter()
             .map(|h| H256::from_slice(h))
-            .collect(),
-    ))
+            .collect::<Vec<H256>>()
+            .as_slice(),
+    );
+    Ok((H256(tree.root().unwrap()), branch))
 }

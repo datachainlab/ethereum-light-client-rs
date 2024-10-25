@@ -1,6 +1,7 @@
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 extern crate alloc;
 
+#[allow(unused_imports)]
 mod internal_prelude {
     pub use alloc::string::{String, ToString};
     pub use alloc::vec;
