@@ -6,15 +6,6 @@ use ethereum_consensus::{
     sync_protocol::SyncCommittee,
 };
 
-/// NextSyncCommitteeView is a view corresponds to a specific light client update
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct NextSyncCommitteeView<const SYNC_COMMITTEE_SIZE: usize> {
-    /// finalized header's slot from light client update
-    pub current_slot: Slot,
-    /// next sync committee from light client update
-    pub next_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-}
-
 pub trait SyncCommitteeView<const SYNC_COMMITTEE_SIZE: usize> {
     fn current_slot(&self) -> Slot;
     fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE>;

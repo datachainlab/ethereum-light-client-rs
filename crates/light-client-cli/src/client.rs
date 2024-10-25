@@ -19,7 +19,7 @@ use ethereum_consensus::{
     types::{H256, U64},
 };
 use ethereum_light_client_verifier::{
-    consensus::{CurrentNextSyncProtocolVerifier, SyncProtocolVerifier},
+    consensus::SyncProtocolVerifier,
     context::{ConsensusVerificationContext, Fraction, LightClientContext},
     state::apply_sync_committee_update,
     updates::capella::ConsensusUpdateInfo,
@@ -43,7 +43,7 @@ pub struct LightClient<
 > {
     ctx: Context<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES, SYNC_COMMITTEE_SIZE>,
     chain: Chain,
-    verifier: CurrentNextSyncProtocolVerifier<
+    verifier: SyncProtocolVerifier<
         SYNC_COMMITTEE_SIZE,
         EXECUTION_PAYLOAD_TREE_DEPTH,
         LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
