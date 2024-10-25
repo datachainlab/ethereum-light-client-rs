@@ -3,7 +3,7 @@ use ethereum_consensus::{
     config::{self, Config},
     types::H256,
 };
-use ethereum_light_client_verifier::updates::capella::LightClientBootstrapInfo;
+use ethereum_light_client_verifier::updates::deneb::LightClientBootstrapInfo;
 use lodestar_rpc::client::RPCClient;
 
 type Result<T> = core::result::Result<T, Error>;

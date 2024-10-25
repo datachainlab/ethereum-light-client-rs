@@ -2,9 +2,9 @@ use crate::chain::Network;
 use crate::cli::Opts;
 use crate::db::{FileDB, DB};
 use crate::{errors::Error, state::LightClientStore};
-use ethereum_consensus::capella::LightClientBootstrap;
 use ethereum_consensus::config::Config;
 use ethereum_consensus::context::ChainContext;
+use ethereum_consensus::deneb::LightClientBootstrap;
 use log::*;
 
 #[derive(Debug)]

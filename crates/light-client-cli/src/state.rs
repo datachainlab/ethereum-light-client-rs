@@ -1,6 +1,6 @@
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
-    capella::{ExecutionPayloadHeader, LightClientBootstrap},
+    deneb::{ExecutionPayloadHeader, LightClientBootstrap},
     sync_protocol::SyncCommittee,
     types::{H256, U64},
 };
