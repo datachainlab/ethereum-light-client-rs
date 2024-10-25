@@ -5,6 +5,7 @@ use ethereum_consensus::{
     bls::PublicKey,
     errors::MerkleError,
     sync_protocol::SyncCommitteePeriod,
+    types::H256,
 };
 use trie_db::TrieError;
 
@@ -20,6 +21,10 @@ pub enum Error {
     NotFinalizedUpdate(SyncCommitteePeriod, SyncCommitteePeriod),
     /// cannot rotate to next sync committee: `store={0} finalized={1}`
     CannotRotateNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
+    /// no next sync committee in store: `store_period={0} signature_period={1}`
+    NoNextSyncCommitteeInStore(u64, u64),
+    /// the beacon header at genesis slot must be empty: `slot={0}`
+    NonEmptyBeaconHeaderAtGenesisSlot(u64),
     /// verify membership error
     VerifyMembershipError(),
     /// trusted root mismatch: `expected={0:?} actual={1:?}`
@@ -66,6 +71,8 @@ pub enum Error {
     InvalidFinalizedExecutionPayload(MerkleError),
     /// invalid merkle branch of next sync committee: `error={0}`
     InvalidNextSyncCommitteeMerkleBranch(MerkleError),
+    /// next sync committee must be empty: `actual={0:?}`
+    NonEmptyNextSyncCommittee(Vec<H256>),
     /// invalid merkle branch of current sync committee: `error={0}`
     InvalidCurrentSyncCommitteeMerkleBranch(MerkleError),
     /// invalid merkle branch of execution state root: `error={0}`
