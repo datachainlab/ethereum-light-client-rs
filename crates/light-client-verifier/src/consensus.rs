@@ -427,7 +427,7 @@ mod tests_bellatrix {
             // NOTE: this is workaround. we must get the correct timestamp from beacon state.
             minimal::get_config().min_genesis_time,
             Fraction::new(2, 3),
-            || U64(100000000000000u64.into()),
+            1729846322.into(),
         );
 
         let updates = [

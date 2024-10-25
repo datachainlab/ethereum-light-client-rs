@@ -1,5 +1,6 @@
 use ethereum_consensus::{
     beacon::{Epoch, Root, Slot},
+    compute::compute_slot_at_timestamp,
     config::Config,
     context::ChainContext,
     fork::ForkParameters,
@@ -21,16 +22,21 @@ impl Fraction {
 }
 
 pub trait ConsensusVerificationContext {
+    /// The root of the genesis validators corresponding to the target chain
+    /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconstate
     fn genesis_validators_root(&self) -> Root;
 
+    /// A slot based on verifier's local clock
     fn current_slot(&self) -> Slot;
 
+    /// MIN_SYNC_COMMITTEE_PARTICIPANTS from the spec: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#misc
     fn min_sync_committee_participants(&self) -> usize;
 
+    /// The threshold of sync committee participation required for valid update
     fn signature_threshold(&self) -> Fraction;
 }
 
-pub struct LightClientContext<F> {
+pub struct LightClientContext {
     fork_parameters: ForkParameters,
     seconds_per_slot: U64,
     slots_per_epoch: Slot,
@@ -40,10 +46,11 @@ pub struct LightClientContext<F> {
     genesis_validators_root: Root,
     min_sync_committee_participants: usize,
     signature_threshold: Fraction,
-    get_current_slot: F,
+
+    current_timestamp: U64,
 }
 
-impl<F> LightClientContext<F> {
+impl LightClientContext {
     pub fn new(
         fork_parameters: ForkParameters,
         seconds_per_slot: U64,
@@ -54,7 +61,7 @@ impl<F> LightClientContext<F> {
         genesis_validators_root: Root,
         min_sync_committee_participants: usize,
         signature_threshold: Fraction,
-        get_current_slot: F,
+        current_timestamp: U64,
     ) -> Self {
         Self {
             fork_parameters,
@@ -66,7 +73,8 @@ impl<F> LightClientContext<F> {
             genesis_validators_root,
             min_sync_committee_participants,
             signature_threshold,
-            get_current_slot,
+
+            current_timestamp,
         }
     }
 
@@ -75,7 +83,7 @@ impl<F> LightClientContext<F> {
         genesis_validators_root: Root,
         genesis_time: U64,
         signature_threshold: Fraction,
-        get_current_slot: F,
+        current_timestamp: U64,
     ) -> Self {
         Self::new(
             config.fork_parameters,
@@ -86,15 +94,12 @@ impl<F> LightClientContext<F> {
             genesis_validators_root,
             config.preset.MIN_SYNC_COMMITTEE_PARTICIPANTS,
             signature_threshold,
-            get_current_slot,
+            current_timestamp,
         )
     }
 }
 
-impl<F> ConsensusVerificationContext for LightClientContext<F>
-where
-    F: Fn() -> Slot,
-{
+impl ConsensusVerificationContext for LightClientContext {
     fn genesis_validators_root(&self) -> Root {
         self.genesis_validators_root.clone()
     }
@@ -108,11 +113,11 @@ where
     }
 
     fn current_slot(&self) -> Slot {
-        (self.get_current_slot)()
+        compute_slot_at_timestamp(self, self.current_timestamp)
     }
 }
 
-impl<F> ChainContext for LightClientContext<F> {
+impl ChainContext for LightClientContext {
     fn genesis_time(&self) -> U64 {
         self.genesis_time
     }
