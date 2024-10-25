@@ -1,5 +1,6 @@
 pub use super::bellatrix::ExecutionUpdateInfo;
 use super::{ConsensusUpdate, LightClientBootstrap};
+#[allow(unused_imports)]
 use crate::internal_prelude::*;
 use core::ops::Deref;
 use ethereum_consensus::{

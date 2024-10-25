@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+#[allow(unused_imports)]
 mod internal_prelude {
     pub use alloc::boxed::Box;
     pub use alloc::format;
