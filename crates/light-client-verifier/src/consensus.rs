@@ -259,10 +259,8 @@ pub fn verify_sync_committee_attestation<
         .map(|t| t.1.clone().try_into().unwrap())
         .collect();
 
-    let fork_version = compute_fork_version(
-        ctx,
-        compute_epoch_at_slot(ctx, consensus_update.signature_slot()),
-    )?;
+    let fork_version_slot = consensus_update.signature_slot().max(1.into()) - 1;
+    let fork_version = compute_fork_version(ctx, compute_epoch_at_slot(ctx, fork_version_slot))?;
     let domain = compute_domain(
         ctx,
         DOMAIN_SYNC_COMMITTEE,
