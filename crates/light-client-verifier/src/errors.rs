@@ -13,8 +13,8 @@ type BoxedTrieError = Box<TrieError<primitive_types::H256, rlp::DecoderError>>;
 
 #[derive(Debug, Display)]
 pub enum Error {
-    /// invalid signature period: `store={0} signature={1} reason={2}`
-    InvalidSingaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
+    /// unexpected signature period: `store={0} signature={1} reason={2}`
+    UnexpectedSingaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
     /// invalid finalized period: `store={0} finalized={1} reason={2}`
     InvalidFinalizedPeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
     /// not finalized period: `finalized={0} attested={1}`

@@ -231,7 +231,7 @@ impl<
                 ))
             }
         } else {
-            Err(Error::InvalidSingaturePeriod(
+            Err(Error::UnexpectedSingaturePeriod(
                 store_period,
                 update_signature_period,
                 "signature period must be equal to store_period or store_period+1".into(),
