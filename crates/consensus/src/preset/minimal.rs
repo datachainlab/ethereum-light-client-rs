@@ -28,7 +28,7 @@ pub const PRESET: Preset = Preset {
     MAX_BLOB_COMMITMENTS_PER_BLOCK: 16,
 };
 
-pub type BellatrixBeaconBlock = crate::bellatrix::BeaconBlock<
+pub type BellatrixBeaconBlock = crate::fork::bellatrix::BeaconBlock<
     { PRESET.MAX_PROPOSER_SLASHINGS },
     { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
     { PRESET.MAX_ATTESTER_SLASHINGS },
@@ -43,12 +43,12 @@ pub type BellatrixBeaconBlock = crate::bellatrix::BeaconBlock<
     { PRESET.SYNC_COMMITTEE_SIZE },
 >;
 
-pub type BellatrixExecutionPayloadHeader = crate::bellatrix::ExecutionPayloadHeader<
+pub type BellatrixExecutionPayloadHeader = crate::fork::bellatrix::ExecutionPayloadHeader<
     { PRESET.BYTES_PER_LOGS_BLOOM },
     { PRESET.MAX_EXTRA_DATA_BYTES },
 >;
 
-pub type CapellaBeaconBlock = crate::capella::BeaconBlock<
+pub type CapellaBeaconBlock = crate::fork::capella::BeaconBlock<
     { PRESET.MAX_PROPOSER_SLASHINGS },
     { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
     { PRESET.MAX_ATTESTER_SLASHINGS },
@@ -65,12 +65,12 @@ pub type CapellaBeaconBlock = crate::capella::BeaconBlock<
     { PRESET.SYNC_COMMITTEE_SIZE },
 >;
 
-pub type CapellaExecutionPayloadHeader = crate::capella::ExecutionPayloadHeader<
+pub type CapellaExecutionPayloadHeader = crate::fork::capella::ExecutionPayloadHeader<
     { PRESET.BYTES_PER_LOGS_BLOOM },
     { PRESET.MAX_EXTRA_DATA_BYTES },
 >;
 
-pub type DenebBeaconBlock = crate::deneb::BeaconBlock<
+pub type DenebBeaconBlock = crate::fork::deneb::BeaconBlock<
     { PRESET.MAX_PROPOSER_SLASHINGS },
     { PRESET.MAX_VALIDATORS_PER_COMMITTEE },
     { PRESET.MAX_ATTESTER_SLASHINGS },
@@ -88,7 +88,7 @@ pub type DenebBeaconBlock = crate::deneb::BeaconBlock<
     { PRESET.MAX_BLOB_COMMITMENTS_PER_BLOCK },
 >;
 
-pub type DenebExecutionPayloadHeader = crate::deneb::ExecutionPayloadHeader<
+pub type DenebExecutionPayloadHeader = crate::fork::deneb::ExecutionPayloadHeader<
     { PRESET.BYTES_PER_LOGS_BLOOM },
     { PRESET.MAX_EXTRA_DATA_BYTES },
 >;

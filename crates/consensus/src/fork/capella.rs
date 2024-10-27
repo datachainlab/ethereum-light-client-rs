@@ -1,10 +1,10 @@
+pub use crate::fork::bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH;
 use crate::{
     beacon::{
         Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
         Root, SignedBlsToExecutionChange, SignedVoluntaryExit, Slot, ValidatorIndex, Withdrawal,
         BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX,
     },
-    bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
     bls::Signature,
     compute::hash_tree_root,
     errors::Error,
@@ -410,11 +410,8 @@ pub fn gen_execution_payload_field_proof<
 
 #[cfg(test)]
 mod test {
-    use super::{
-        gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
-    };
+    use super::*;
     use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
-    use crate::bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH;
     use crate::merkle::is_valid_merkle_branch;
     use crate::sync_protocol::EXECUTION_PAYLOAD_DEPTH;
     use crate::{compute::hash_tree_root, types::H256};
@@ -422,7 +419,7 @@ mod test {
     use std::fs;
 
     #[test]
-    fn beacon_block_serialization() {
+    fn beacon_header_serialization() {
         use crate::execution::{
             EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
         };

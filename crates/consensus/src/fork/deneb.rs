@@ -1,7 +1,7 @@
 use crate::{
     beacon::{
         Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
-        Root, SignedVoluntaryExit, Slot, ValidatorIndex, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX,
+        Root, SignedBlsToExecutionChange, SignedVoluntaryExit, Slot, ValidatorIndex, Withdrawal,
     },
     bls::Signature,
     compute::hash_tree_root,
@@ -19,7 +19,7 @@ use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
 /// Execution payload tree depth
-pub const EXECUTION_PAYLOAD_TREE_DEPTH: usize = 4;
+pub const EXECUTION_PAYLOAD_TREE_DEPTH: usize = 5;
 
 /// Beacon Block
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconblock
@@ -38,7 +38,10 @@ pub struct BeaconBlock<
     const MAX_EXTRA_DATA_BYTES: usize,
     const MAX_BYTES_PER_TRANSACTION: usize,
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+    const MAX_BLS_TO_EXECUTION_CHANGES: usize,
     const SYNC_COMMITTEE_SIZE: usize,
+    const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
 > {
     pub slot: Slot,
     pub proposer_index: ValidatorIndex,
@@ -56,7 +59,10 @@ pub struct BeaconBlock<
         MAX_EXTRA_DATA_BYTES,
         MAX_BYTES_PER_TRANSACTION,
         MAX_TRANSACTIONS_PER_PAYLOAD,
+        MAX_WITHDRAWALS_PER_PAYLOAD,
+        MAX_BLS_TO_EXECUTION_CHANGES,
         SYNC_COMMITTEE_SIZE,
+        MAX_BLOB_COMMITMENTS_PER_BLOCK,
     >,
 }
 
@@ -72,7 +78,10 @@ impl<
         const MAX_EXTRA_DATA_BYTES: usize,
         const MAX_BYTES_PER_TRANSACTION: usize,
         const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+        const MAX_BLS_TO_EXECUTION_CHANGES: usize,
         const SYNC_COMMITTEE_SIZE: usize,
+        const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
     >
     BeaconBlock<
         MAX_PROPOSER_SLASHINGS,
@@ -86,7 +95,10 @@ impl<
         MAX_EXTRA_DATA_BYTES,
         MAX_BYTES_PER_TRANSACTION,
         MAX_TRANSACTIONS_PER_PAYLOAD,
+        MAX_WITHDRAWALS_PER_PAYLOAD,
+        MAX_BLS_TO_EXECUTION_CHANGES,
         SYNC_COMMITTEE_SIZE,
+        MAX_BLOB_COMMITMENTS_PER_BLOCK,
     >
 {
     pub fn to_header(self) -> BeaconBlockHeader {
@@ -117,7 +129,10 @@ pub struct BeaconBlockBody<
     const MAX_EXTRA_DATA_BYTES: usize,
     const MAX_BYTES_PER_TRANSACTION: usize,
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+    const MAX_BLS_TO_EXECUTION_CHANGES: usize,
     const SYNC_COMMITTEE_SIZE: usize,
+    const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
 > {
     pub randao_reveal: Signature,
     pub eth1_data: Eth1Data,
@@ -134,8 +149,15 @@ pub struct BeaconBlockBody<
         MAX_EXTRA_DATA_BYTES,
         MAX_BYTES_PER_TRANSACTION,
         MAX_TRANSACTIONS_PER_PAYLOAD,
+        MAX_WITHDRAWALS_PER_PAYLOAD,
     >,
+    pub bls_to_execution_changes: List<SignedBlsToExecutionChange, MAX_BLS_TO_EXECUTION_CHANGES>,
+    pub blob_kzg_commitments: List<KzgCommitment, MAX_BLOB_COMMITMENTS_PER_BLOCK>,
 }
+
+pub type KzgCommitment = ByteVector<48>;
+
+// Execution
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#executionpayload
 #[derive(
@@ -146,6 +168,7 @@ pub struct ExecutionPayload<
     const MAX_EXTRA_DATA_BYTES: usize,
     const MAX_BYTES_PER_TRANSACTION: usize,
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
 > {
     /// Execution block header fields
     pub parent_hash: H256,
@@ -166,6 +189,9 @@ pub struct ExecutionPayload<
     /// Hash of execution block
     pub block_hash: H256,
     pub transactions: List<ByteList<MAX_BYTES_PER_TRANSACTION>, MAX_TRANSACTIONS_PER_PAYLOAD>,
+    pub withdrawals: List<Withdrawal, MAX_WITHDRAWALS_PER_PAYLOAD>,
+    pub blob_gas_used: U64,
+    pub excess_blob_gas: U64,
 }
 
 impl<
@@ -173,12 +199,14 @@ impl<
         const MAX_EXTRA_DATA_BYTES: usize,
         const MAX_BYTES_PER_TRANSACTION: usize,
         const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
     >
     ExecutionPayload<
         BYTES_PER_LOGS_BLOOM,
         MAX_EXTRA_DATA_BYTES,
         MAX_BYTES_PER_TRANSACTION,
         MAX_TRANSACTIONS_PER_PAYLOAD,
+        MAX_WITHDRAWALS_PER_PAYLOAD,
     >
 {
     pub fn to_header(
@@ -201,6 +229,11 @@ impl<
             transactions_root: Root::from_slice(
                 self.transactions.hash_tree_root().unwrap().as_bytes(),
             ),
+            withdrawals_root: Root::from_slice(
+                self.withdrawals.hash_tree_root().unwrap().as_bytes(),
+            ),
+            blob_gas_used: self.blob_gas_used,
+            excess_blob_gas: self.excess_blob_gas,
         }
     }
 }
@@ -232,33 +265,52 @@ pub struct ExecutionPayloadHeader<
     /// Hash of execution block
     pub block_hash: H256,
     pub transactions_root: Root,
+    pub withdrawals_root: Root,
+    pub blob_gas_used: U64,
+    pub excess_blob_gas: U64,
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#lightclientbootstrap
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct LightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize> {
-    pub beacon_header: BeaconBlockHeader,
+pub struct LightClientBootstrap<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const BYTES_PER_LOGS_BLOOM: usize,
+    const MAX_EXTRA_DATA_BYTES: usize,
+> {
+    pub header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Current sync committee corresponding to `beacon_header.state_root`
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
     pub current_sync_committee_branch: [H256; CURRENT_SYNC_COMMITTEE_DEPTH],
 }
 
-/// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#lightclientupdate
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct LightClientUpdate<const SYNC_COMMITTEE_SIZE: usize> {
+pub struct LightClientUpdate<
+    const SYNC_COMMITTEE_SIZE: usize,
+    const BYTES_PER_LOGS_BLOOM: usize,
+    const MAX_EXTRA_DATA_BYTES: usize,
+> {
     /// Header attested to by the sync committee
-    pub attested_header: BeaconBlockHeader,
+    pub attested_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Next sync committee corresponding to `attested_header.state_root`
     pub next_sync_committee: Option<(
         SyncCommittee<SYNC_COMMITTEE_SIZE>,
         [H256; NEXT_SYNC_COMMITTEE_DEPTH],
     )>,
     /// Finalized header corresponding to `attested_header.state_root`
-    pub finalized_header: (BeaconBlockHeader, [H256; FINALIZED_ROOT_DEPTH]),
+    pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
     pub signature_slot: Slot,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LightClientHeader<const BYTES_PER_LOGS_BLOOM: usize, const MAX_EXTRA_DATA_BYTES: usize> {
+    /// Header matching the requested beacon block root
+    pub beacon: BeaconBlockHeader,
+    pub execution: ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+    pub execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
 }
 
 // TODO each fork's prover implementation is redundant
@@ -275,7 +327,10 @@ pub fn gen_execution_payload_proof<
     const MAX_EXTRA_DATA_BYTES: usize,
     const MAX_BYTES_PER_TRANSACTION: usize,
     const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+    const MAX_BLS_TO_EXECUTION_CHANGES: usize,
     const SYNC_COMMITTEE_SIZE: usize,
+    const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
 >(
     body: &BeaconBlockBody<
         MAX_PROPOSER_SLASHINGS,
@@ -289,9 +344,12 @@ pub fn gen_execution_payload_proof<
         MAX_EXTRA_DATA_BYTES,
         MAX_BYTES_PER_TRANSACTION,
         MAX_TRANSACTIONS_PER_PAYLOAD,
+        MAX_WITHDRAWALS_PER_PAYLOAD,
+        MAX_BLS_TO_EXECUTION_CHANGES,
         SYNC_COMMITTEE_SIZE,
+        MAX_BLOB_COMMITMENTS_PER_BLOCK,
     >,
-) -> Result<(Root, [H256; EXECUTION_PAYLOAD_DEPTH]), Error> {
+) -> Result<(Root, Vec<H256>), Error> {
     let tree = MerkleTree::from_leaves(
         ([
             hash_tree_root(body.randao_reveal.clone()).unwrap().0,
@@ -304,8 +362,10 @@ pub fn gen_execution_payload_proof<
             hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
             hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
             hash_tree_root(body.execution_payload.clone()).unwrap().0,
-            Default::default(),
-            Default::default(),
+            hash_tree_root(body.bls_to_execution_changes.clone())
+                .unwrap()
+                .0,
+            hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
             Default::default(),
             Default::default(),
             Default::default(),
@@ -313,16 +373,14 @@ pub fn gen_execution_payload_proof<
         ] as [_; 16])
             .as_ref(),
     );
-    let mut branch = [Default::default(); EXECUTION_PAYLOAD_DEPTH];
-    branch.copy_from_slice(
-        tree.proof(&[BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX])
+    Ok((
+        H256(tree.root().unwrap()),
+        tree.proof(&[9])
             .proof_hashes()
             .iter()
             .map(|h| H256::from_slice(h))
-            .collect::<Vec<H256>>()
-            .as_slice(),
-    );
-    Ok((H256(tree.root().unwrap()), branch))
+            .collect(),
+    ))
 }
 
 pub fn gen_execution_payload_field_proof<
@@ -348,9 +406,25 @@ pub fn gen_execution_payload_field_proof<
             hash_tree_root(payload.base_fee_per_gas.clone()).unwrap().0,
             payload.block_hash.0,
             payload.transactions_root.0,
+            payload.withdrawals_root.0,
+            hash_tree_root(payload.blob_gas_used).unwrap().0,
+            hash_tree_root(payload.excess_blob_gas).unwrap().0,
             Default::default(),
             Default::default(),
-        ] as [_; 16])
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ] as [_; 32])
             .as_ref(),
     );
     let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH];
@@ -367,25 +441,11 @@ pub fn gen_execution_payload_field_proof<
 
 #[cfg(test)]
 mod test {
-    use super::{
-        gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
-    };
+    use super::*;
     use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
-    use crate::bellatrix::{LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH};
     use crate::merkle::is_valid_merkle_branch;
-    use crate::sync_protocol::{SyncCommittee, EXECUTION_PAYLOAD_DEPTH};
-    use crate::{
-        beacon::DOMAIN_SYNC_COMMITTEE,
-        bls::fast_aggregate_verify,
-        compute::{
-            compute_domain, compute_epoch_at_slot, compute_fork_version, compute_signing_root,
-        },
-        config,
-        context::DefaultChainContext,
-        preset,
-    };
+    use crate::sync_protocol::EXECUTION_PAYLOAD_DEPTH;
     use crate::{compute::hash_tree_root, types::H256};
-    pub use milagro_bls::PublicKey as BLSPublicKey;
     use ssz_rs::Merkleized;
     use std::fs;
 
@@ -395,12 +455,12 @@ mod test {
             EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
         };
         let mut header: BeaconBlockHeader = serde_json::from_str(
-            &fs::read_to_string("./data/goerli_bellatrix_header_4825088.json").unwrap(),
+            &fs::read_to_string("./data/mainnet_header_10265184.json").unwrap(),
         )
         .unwrap();
 
-        let mut block: crate::preset::mainnet::BellatrixBeaconBlock = serde_json::from_str(
-            &fs::read_to_string("./data/goerli_bellatrix_block_4825088.json").unwrap(),
+        let mut block: crate::preset::mainnet::DenebBeaconBlock = serde_json::from_str(
+            &fs::read_to_string("./data/mainnet_block_10265184.json").unwrap(),
         )
         .unwrap();
 
@@ -465,73 +525,5 @@ mod test {
             )
             .is_ok());
         }
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-    struct NetworkContext {
-        pub genesis_validators_root: H256,
-    }
-
-    #[test]
-    fn test_light_client_update_verification() {
-        let sync_committee: SyncCommittee<{ preset::mainnet::PRESET.SYNC_COMMITTEE_SIZE }> =
-            serde_json::from_str(
-                &fs::read_to_string("./data/mainnet_sync_committee_period_713.json").unwrap(),
-            )
-            .unwrap();
-        assert!(sync_committee.validate().is_ok());
-
-        let update: LightClientUpdate<{ preset::mainnet::PRESET.SYNC_COMMITTEE_SIZE }> =
-            serde_json::from_str(
-                &fs::read_to_string("./data/mainnet_light_client_update_slot_5841038.json")
-                    .unwrap(),
-            )
-            .unwrap();
-
-        let network: NetworkContext =
-            serde_json::from_str(&fs::read_to_string("./data/mainnet_context.json").unwrap())
-                .unwrap();
-
-        // ensure that signing_root calculation is correct
-
-        let ctx = DefaultChainContext::new_with_config(0.into(), config::mainnet::get_config());
-        let fork_version =
-            compute_fork_version(&ctx, compute_epoch_at_slot(&ctx, update.signature_slot)).unwrap();
-        let domain = compute_domain(
-            &ctx,
-            DOMAIN_SYNC_COMMITTEE,
-            Some(fork_version),
-            Some(network.genesis_validators_root),
-        )
-        .unwrap();
-        let signing_root = compute_signing_root(update.attested_header, domain).unwrap();
-        let expected_signing_root: H256 = serde_json::from_str(
-            &fs::read_to_string("./data/mainnet_signing_root_slot_5841037.json").unwrap(),
-        )
-        .unwrap();
-        assert_eq!(expected_signing_root, signing_root);
-
-        // ensure that bls verification is correct
-
-        let participant_pubkeys: Vec<BLSPublicKey> = update
-            .sync_aggregate
-            .sync_committee_bits
-            .iter()
-            .zip(sync_committee.pubkeys.iter())
-            .filter(|it| it.0 == true)
-            .map(|t| t.1.clone().try_into().unwrap())
-            .collect();
-
-        let res = fast_aggregate_verify(
-            participant_pubkeys,
-            signing_root,
-            update
-                .sync_aggregate
-                .sync_committee_signature
-                .try_into()
-                .unwrap(),
-        );
-        assert!(res.is_ok());
-        assert!(res.unwrap());
     }
 }

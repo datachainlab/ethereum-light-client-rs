@@ -2,7 +2,7 @@ use super::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use crate::internal_prelude::*;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
-    bellatrix::LightClientUpdate,
+    fork::bellatrix::LightClientUpdate,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
         FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
@@ -13,7 +13,7 @@ use ethereum_consensus::{
 #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct LightClientBootstrapInfo<const SYNC_COMMITTEE_SIZE: usize>(
-    pub ethereum_consensus::bellatrix::LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+    pub ethereum_consensus::fork::bellatrix::LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
 );
 
 impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>

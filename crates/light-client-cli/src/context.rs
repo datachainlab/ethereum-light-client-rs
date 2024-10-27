@@ -4,7 +4,7 @@ use crate::db::{FileDB, DB};
 use crate::{errors::Error, state::LightClientStore};
 use ethereum_consensus::config::Config;
 use ethereum_consensus::context::ChainContext;
-use ethereum_consensus::deneb::LightClientBootstrap;
+use ethereum_consensus::fork::deneb::LightClientBootstrap;
 use log::*;
 use std::str::FromStr;
 

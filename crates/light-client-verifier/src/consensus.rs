@@ -413,9 +413,9 @@ mod tests_bellatrix {
     };
     use ethereum_consensus::{
         beacon::Version,
-        bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
         bls::aggreate_public_key,
         config::{minimal, Config},
+        fork::bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
         fork::{ForkParameter, ForkParameters},
         preset,
         types::U64,

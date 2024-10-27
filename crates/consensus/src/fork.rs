@@ -1,3 +1,7 @@
+pub mod bellatrix;
+pub mod capella;
+pub mod deneb;
+
 use crate::beacon::{Epoch, Slot, Version};
 use crate::errors::Error;
 use crate::internal_prelude::*;
