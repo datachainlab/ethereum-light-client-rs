@@ -484,7 +484,6 @@ mod tests_bellatrix {
             Fraction::new(2, 3),
             1729846322.into(),
         );
-        assert!(ctx.validate().is_ok(), "context is invalid");
 
         let updates = [
             "light_client_update_period_5.json",
@@ -540,7 +539,8 @@ mod tests_bellatrix {
                     ForkParameter::new(Version([1, 0, 0, 1]), U64(0)),
                     ForkParameter::new(Version([2, 0, 0, 1]), U64(0)),
                 ],
-            ),
+            )
+            .unwrap(),
             min_genesis_time: U64(1578009600),
         }
     }

@@ -108,11 +108,6 @@ impl LightClientContext {
             current_timestamp,
         )
     }
-
-    pub fn validate(&self) -> Result<(), Error> {
-        self.fork_parameters.validate()?;
-        Ok(())
-    }
 }
 
 impl ConsensusVerificationContext for LightClientContext {

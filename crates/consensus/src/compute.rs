@@ -96,7 +96,6 @@ mod tests {
     #[test]
     fn test_compute_timestamp_at_slot() {
         let ctx = DefaultChainContext::new_with_config(1729846322.into(), get_minimal_config());
-        assert!(ctx.validate().is_ok(), "context is invalid");
         assert_eq!(compute_timestamp_at_slot(&ctx, 0.into()), 1729846322.into());
         assert_eq!(compute_timestamp_at_slot(&ctx, 1.into()), 1729846328.into());
         assert_eq!(compute_timestamp_at_slot(&ctx, 2.into()), 1729846334.into());
@@ -109,7 +108,7 @@ mod tests {
     fn get_minimal_config() -> Config {
         Config {
             preset: preset::minimal::PRESET,
-            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]),
+            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]).unwrap(),
             min_genesis_time: U64(1578009600),
         }
     }

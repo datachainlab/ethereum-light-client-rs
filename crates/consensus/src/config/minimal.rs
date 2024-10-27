@@ -22,7 +22,8 @@ pub fn get_config() -> Config {
                 // deneb
                 ForkParameter::new(Version([4, 0, 0, 1]), U64(0)),
             ],
-        ),
+        )
+        .unwrap(),
         min_genesis_time: U64(1578009600),
     }
 }
@@ -33,7 +34,6 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let config = get_config();
-        assert!(config.fork_parameters.validate().is_ok());
+        let _ = get_config();
     }
 }
