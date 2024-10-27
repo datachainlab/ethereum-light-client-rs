@@ -9,11 +9,11 @@ use ethereum_consensus::{
     beacon::{Root, Slot},
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
-    deneb::{self, LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH},
     execution::{
         BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
         EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
     },
+    fork::deneb::{self, LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH},
     sync_protocol::SyncCommitteePeriod,
     types::{H256, U64},
 };

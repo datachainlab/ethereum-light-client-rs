@@ -4,7 +4,7 @@ use core::ops::Deref;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     compute::hash_tree_root,
-    deneb::LightClientUpdate,
+    fork::deneb::LightClientUpdate,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
         FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
@@ -19,7 +19,7 @@ pub struct LightClientBootstrapInfo<
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
 >(
-    pub  ethereum_consensus::deneb::LightClientBootstrap<
+    pub  ethereum_consensus::fork::deneb::LightClientBootstrap<
         SYNC_COMMITTEE_SIZE,
         BYTES_PER_LOGS_BLOOM,
         MAX_EXTRA_DATA_BYTES,
@@ -33,7 +33,7 @@ impl<
     > Deref
     for LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
 {
-    type Target = ethereum_consensus::deneb::LightClientBootstrap<
+    type Target = ethereum_consensus::fork::deneb::LightClientBootstrap<
         SYNC_COMMITTEE_SIZE,
         BYTES_PER_LOGS_BLOOM,
         MAX_EXTRA_DATA_BYTES,

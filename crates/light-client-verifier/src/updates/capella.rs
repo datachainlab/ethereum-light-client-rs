@@ -5,8 +5,8 @@ use crate::internal_prelude::*;
 use core::ops::Deref;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
-    capella::LightClientUpdate,
     compute::hash_tree_root,
+    fork::capella::LightClientUpdate,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
         FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
@@ -21,7 +21,7 @@ pub struct LightClientBootstrapInfo<
     const BYTES_PER_LOGS_BLOOM: usize,
     const MAX_EXTRA_DATA_BYTES: usize,
 >(
-    pub  ethereum_consensus::capella::LightClientBootstrap<
+    pub  ethereum_consensus::fork::capella::LightClientBootstrap<
         SYNC_COMMITTEE_SIZE,
         BYTES_PER_LOGS_BLOOM,
         MAX_EXTRA_DATA_BYTES,
@@ -35,7 +35,7 @@ impl<
     > Deref
     for LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
 {
-    type Target = ethereum_consensus::capella::LightClientBootstrap<
+    type Target = ethereum_consensus::fork::capella::LightClientBootstrap<
         SYNC_COMMITTEE_SIZE,
         BYTES_PER_LOGS_BLOOM,
         MAX_EXTRA_DATA_BYTES,

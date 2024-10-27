@@ -1,7 +1,7 @@
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Checkpoint, Root, Slot},
     bls::Signature,
-    deneb::{LightClientBootstrap, LightClientHeader, LightClientUpdate},
+    fork::deneb::{LightClientBootstrap, LightClientHeader, LightClientUpdate},
     sync_protocol::FINALIZED_ROOT_DEPTH,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
