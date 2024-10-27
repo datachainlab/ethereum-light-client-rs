@@ -2,7 +2,8 @@ use crate::context::ConsensusVerificationContext;
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use ethereum_consensus::{
-    beacon::{BeaconBlockHeader, Slot},
+    beacon::{BeaconBlockHeader, Slot, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX},
+    merkle::is_valid_merkle_branch,
     sync_protocol::{
         SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
         FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
@@ -39,18 +40,29 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE>;
     fn signature_slot(&self) -> Slot;
 
-    fn validate_basic<C: ConsensusVerificationContext>(&self, ctx: &C) -> Result<(), Error> {
-        // ensure that the finalized header is non-empty
-        if self.finalized_beacon_header() == &BeaconBlockHeader::default() {
-            return Err(Error::FinalizedHeaderNotFound);
-        }
+    /// ref. https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#is_valid_light_client_header
+    /// NOTE: There are no validation for the execution payload, so you should implement it if the update contains the execution payload.
+    fn is_valid_light_client_finalized_header(&self) -> Result<(), Error> {
+        is_valid_merkle_branch(
+            self.finalized_execution_root(),
+            &self.finalized_execution_branch(),
+            EXECUTION_PAYLOAD_DEPTH as u32,
+            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
+            self.finalized_beacon_header().body_root.clone(),
+        )
+        .map_err(Error::InvalidFinalizedExecutionPayload)
+    }
 
+    fn validate_basic<C: ConsensusVerificationContext>(&self, ctx: &C) -> Result<(), Error> {
         // ensure that sync committee's aggreated key matches pubkeys
         if let Some(next_sync_committee) = self.next_sync_committee() {
             next_sync_committee.validate()?;
         }
 
         // ensure that the order of slots is consistent
+        // equivalent to:
+        // `assert current_slot >= update.signature_slot > update_attested_slot >= update_finalized_slot``
+        // from the spec: https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md?plain=1#L380
         if !(ctx.current_slot() >= self.signature_slot()
             && self.signature_slot() > self.attested_beacon_header().slot
             && self.attested_beacon_header().slot >= self.finalized_beacon_header().slot)
@@ -66,6 +78,7 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
         // ensure that suffienct participants exist
 
         let participants = self.sync_aggregate().count_participants();
+        // from the spec: `assert sum(sync_aggregate.sync_committee_bits) >= MIN_SYNC_COMMITTEE_PARTICIPANTS`
         if participants < ctx.min_sync_committee_participants() {
             return Err(Error::LessThanMinimalParticipants(
                 participants,

@@ -20,8 +20,8 @@ use ethereum_consensus::{
 use ethereum_light_client_verifier::{
     consensus::SyncProtocolVerifier,
     context::{ConsensusVerificationContext, Fraction, LightClientContext},
-    state::apply_sync_committee_update,
-    updates::deneb::ConsensusUpdateInfo,
+    state::should_update_sync_committees,
+    updates::{deneb::ConsensusUpdateInfo, ConsensusUpdate},
 };
 use log::*;
 use std::time::SystemTime;
@@ -267,23 +267,36 @@ impl<
 
         self.verifier
             .validate_updates(vctx, state, &updates.0, &updates.1)?;
-        self.verifier
-            .ensure_relevant_update(vctx, state, &updates.0)?;
 
-        let mut updated = false;
+        self.apply_light_client_update(state, updates.0)
+    }
+
+    fn apply_light_client_update(
+        &self,
+        state: &LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+        consensus_update: ConsensusUpdateInfo<
+            SYNC_COMMITTEE_SIZE,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+        >,
+    ) -> Result<
+        Option<LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>>,
+    > {
         let mut new_state = state.clone();
-        if apply_sync_committee_update(&self.ctx, &mut new_state, &updates.0)? {
-            updated = true;
+        let (current_committee, next_committee) =
+            should_update_sync_committees(&self.ctx, state, &consensus_update)?;
+        if let Some(current_committee) = current_committee {
+            new_state.current_sync_committee = current_committee.clone();
         }
-        if updates.0.finalized_header.execution.block_number
-            > state.latest_execution_payload_header.block_number
-        {
+        if let Some(next_committee) = next_committee {
+            new_state.next_sync_committee = next_committee.cloned();
+        }
+        if consensus_update.finalized_beacon_header().slot > state.latest_finalized_header.slot {
+            new_state.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
             new_state.latest_execution_payload_header =
-                updates.0.finalized_header.execution.clone();
-            updated = true;
+                consensus_update.finalized_header.execution.clone();
         }
-
-        if updated {
+        if *state != new_state {
             self.ctx.store_light_client_state(&new_state)?;
             Ok(Some(new_state))
         } else {

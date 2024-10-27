@@ -1,4 +1,7 @@
-use crate::state::{SyncCommitteeKeeper, SyncCommitteeView};
+use crate::context::ConsensusVerificationContext;
+use crate::state::{should_update_sync_committees, LightClientStoreReader};
+use crate::updates::ConsensusUpdate;
+use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::sync_protocol::SyncCommittee;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
@@ -26,9 +29,35 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
             next_sync_committee: None,
         }
     }
+
+    pub fn apply_light_client_update<
+        CC: ChainContext + ConsensusVerificationContext,
+        CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
+    >(
+        &mut self,
+        ctx: &CC,
+        consensus_update: &CU,
+    ) -> Result<bool, crate::errors::Error> {
+        let (current_committee, next_committee) =
+            should_update_sync_committees(ctx, self, consensus_update)?;
+        let mut updated = false;
+        if let Some(committee) = current_committee {
+            self.current_sync_committee = committee.clone();
+            updated = true;
+        }
+        if let Some(committee) = next_committee {
+            self.next_sync_committee = committee.cloned();
+            updated = true;
+        }
+        if consensus_update.finalized_beacon_header().slot > self.latest_finalized_header.slot {
+            self.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
+            updated = true;
+        }
+        Ok(updated)
+    }
 }
 
-impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommitteeView<SYNC_COMMITTEE_SIZE>
+impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for MockStore<SYNC_COMMITTEE_SIZE>
 {
     fn current_slot(&self) -> Slot {
@@ -41,25 +70,5 @@ impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommitteeView<SYNC_COMMITTEE_SIZE>
 
     fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
         self.next_sync_committee.as_ref()
-    }
-}
-
-impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommitteeKeeper<SYNC_COMMITTEE_SIZE>
-    for MockStore<SYNC_COMMITTEE_SIZE>
-{
-    fn set_finalized_header(&mut self, header: BeaconBlockHeader) {
-        self.latest_finalized_header = header;
-    }
-    fn set_current_sync_committee(
-        &mut self,
-        current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    ) {
-        self.current_sync_committee = current_sync_committee;
-    }
-    fn set_next_sync_committee(
-        &mut self,
-        next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
-    ) {
-        self.next_sync_committee = next_sync_committee;
     }
 }

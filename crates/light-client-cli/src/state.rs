@@ -4,10 +4,7 @@ use ethereum_consensus::{
     sync_protocol::SyncCommittee,
     types::{H256, U64},
 };
-use ethereum_light_client_verifier::{
-    state::{SyncCommitteeKeeper, SyncCommitteeView},
-    updates::ExecutionUpdate,
-};
+use ethereum_light_client_verifier::{state::LightClientStoreReader, updates::ExecutionUpdate};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct LightClientStore<
@@ -52,7 +49,7 @@ impl<
         const SYNC_COMMITTEE_SIZE: usize,
         const BYTES_PER_LOGS_BLOOM: usize,
         const MAX_EXTRA_DATA_BYTES: usize,
-    > SyncCommitteeView<SYNC_COMMITTEE_SIZE>
+    > LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
 {
     fn current_slot(&self) -> Slot {
@@ -65,32 +62,6 @@ impl<
 
     fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
         self.next_sync_committee.as_ref()
-    }
-}
-
-impl<
-        const SYNC_COMMITTEE_SIZE: usize,
-        const BYTES_PER_LOGS_BLOOM: usize,
-        const MAX_EXTRA_DATA_BYTES: usize,
-    > SyncCommitteeKeeper<SYNC_COMMITTEE_SIZE>
-    for LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
-{
-    fn set_finalized_header(&mut self, header: BeaconBlockHeader) {
-        self.latest_finalized_header = header;
-    }
-
-    fn set_current_sync_committee(
-        &mut self,
-        current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    ) {
-        self.current_sync_committee = current_sync_committee;
-    }
-
-    fn set_next_sync_committee(
-        &mut self,
-        next_sync_committee: Option<SyncCommittee<SYNC_COMMITTEE_SIZE>>,
-    ) {
-        self.next_sync_committee = next_sync_committee;
     }
 }
 
