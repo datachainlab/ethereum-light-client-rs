@@ -438,3 +438,92 @@ pub fn gen_execution_payload_field_proof<
     );
     Ok((H256(tree.root().unwrap()), branch))
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
+    use crate::merkle::is_valid_merkle_branch;
+    use crate::sync_protocol::EXECUTION_PAYLOAD_DEPTH;
+    use crate::{compute::hash_tree_root, types::H256};
+    use ssz_rs::Merkleized;
+    use std::fs;
+
+    #[test]
+    fn beacon_block_serialization() {
+        use crate::execution::{
+            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+        };
+        let mut header: BeaconBlockHeader = serde_json::from_str(
+            &fs::read_to_string("./data/mainnet_header_10265184.json").unwrap(),
+        )
+        .unwrap();
+
+        let mut block: crate::preset::mainnet::DenebBeaconBlock = serde_json::from_str(
+            &fs::read_to_string("./data/mainnet_block_10265184.json").unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(header, block.clone().to_header());
+        assert_eq!(
+            header.hash_tree_root().unwrap(),
+            block.hash_tree_root().unwrap()
+        );
+
+        let (block_root, payload_proof) = gen_execution_payload_proof(&block.body).unwrap();
+        assert_eq!(
+            block_root.as_bytes(),
+            block.body.hash_tree_root().unwrap().as_bytes()
+        );
+
+        let payload_root = block.body.execution_payload.hash_tree_root().unwrap();
+        let payload_header = block.body.execution_payload.clone().to_header();
+
+        assert!(is_valid_merkle_branch(
+            H256::from_slice(payload_root.as_bytes()),
+            &payload_proof,
+            EXECUTION_PAYLOAD_DEPTH as u32,
+            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
+            block_root
+        )
+        .is_ok());
+
+        {
+            let (root, proof) = gen_execution_payload_field_proof(
+                &payload_header,
+                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+            )
+            .unwrap();
+            assert_eq!(root.as_bytes(), payload_root.as_bytes());
+
+            assert!(is_valid_merkle_branch(
+                hash_tree_root(payload_header.state_root).unwrap().0.into(),
+                &proof,
+                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
+                root,
+            )
+            .is_ok());
+        }
+        {
+            let (root, proof) = gen_execution_payload_field_proof(
+                &payload_header,
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+            )
+            .unwrap();
+            assert_eq!(root.as_bytes(), payload_root.as_bytes());
+
+            assert!(is_valid_merkle_branch(
+                hash_tree_root(payload_header.block_number)
+                    .unwrap()
+                    .0
+                    .into(),
+                &proof,
+                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
+                root,
+            )
+            .is_ok());
+        }
+    }
+}

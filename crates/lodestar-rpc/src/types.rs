@@ -2,9 +2,10 @@ use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Checkpoint, Root, Slot},
     bls::Signature,
     fork::deneb::{LightClientBootstrap, LightClientHeader, LightClientUpdate},
-    sync_protocol::FINALIZED_ROOT_DEPTH,
+    preset::mainnet::DenebBeaconBlock,
     sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
+        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, FINALIZED_ROOT_DEPTH,
+        NEXT_SYNC_COMMITTEE_DEPTH,
     },
     types::{H256, U64},
 };
@@ -47,6 +48,20 @@ pub struct BeaconHeaderData {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BeaconHeaderSignature {
     pub message: BeaconBlockHeader,
+    pub signature: Signature,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BeaconBlockResponse {
+    pub data: BeaconBlockData,
+    pub execution_optimistic: bool,
+    pub finalized: bool,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BeaconBlockData {
+    pub message: DenebBeaconBlock,
     pub signature: Signature,
 }
 

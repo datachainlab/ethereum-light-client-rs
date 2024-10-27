@@ -1,8 +1,8 @@
 use crate::errors::Error;
 use crate::types::{
-    BeaconBlockRootResponse, BeaconHeaderResponse, FinalityCheckpointsResponse,
-    GenesisDataResponse, LightClientBootstrapResponse, LightClientFinalityUpdateResponse,
-    LightClientUpdatesResponse,
+    BeaconBlockResponse, BeaconBlockRootResponse, BeaconHeaderResponse,
+    FinalityCheckpointsResponse, GenesisDataResponse, LightClientBootstrapResponse,
+    LightClientFinalityUpdateResponse, LightClientUpdatesResponse,
 };
 use ethereum_consensus::beacon::Slot;
 use ethereum_consensus::sync_protocol::SyncCommitteePeriod;
@@ -39,6 +39,11 @@ impl RPCClient {
 
     pub async fn get_beacon_header_by_slot(&self, slot: Slot) -> Result<BeaconHeaderResponse> {
         self.request_get(format!("/eth/v1/beacon/headers/{}", slot))
+            .await
+    }
+
+    pub async fn get_beacon_block_by_slot(&self, slot: Slot) -> Result<BeaconBlockResponse> {
+        self.request_get(format!("/eth/v2/beacon/blocks/{}", slot))
             .await
     }
 

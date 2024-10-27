@@ -76,6 +76,8 @@ impl Cli {
         match self.cmd {
             Command::Init(cmd) => cmd.run(ctx).await,
             Command::Update(cmd) => cmd.run(ctx).await,
+            Command::Header(cmd) => cmd.run(ctx).await,
+            Command::Block(cmd) => cmd.run(ctx).await,
         }
     }
 }
