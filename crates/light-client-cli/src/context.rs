@@ -6,6 +6,7 @@ use ethereum_consensus::config::Config;
 use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::deneb::LightClientBootstrap;
 use log::*;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct Context<

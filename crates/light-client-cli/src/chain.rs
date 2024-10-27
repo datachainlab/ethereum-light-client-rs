@@ -5,6 +5,7 @@ use ethereum_consensus::{
 };
 use ethereum_light_client_verifier::updates::deneb::LightClientBootstrapInfo;
 use lodestar_rpc::client::RPCClient;
+use std::str::FromStr;
 
 type Result<T> = core::result::Result<T, Error>;
 
@@ -60,24 +61,28 @@ pub enum Network {
 }
 
 impl Network {
-    pub fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "minimal" => Ok(Network::Minimal),
-            "mainnet" => Ok(Network::Mainnet),
-            "goerli" => Ok(Network::Goerli),
-            "sepolia" => Ok(Network::Sepolia),
-            s => Err(Error::Other {
-                description: format!("unknown network: {}", s).into(),
-            }),
-        }
-    }
-
     pub fn config(&self) -> Config {
         match self {
             Network::Minimal => config::minimal::get_config(),
             Network::Mainnet => config::mainnet::get_config(),
             Network::Goerli => config::goerli::get_config(),
             Network::Sepolia => config::sepolia::get_config(),
+        }
+    }
+}
+
+impl FromStr for Network {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "minimal" => Ok(Network::Minimal),
+            "mainnet" => Ok(Network::Mainnet),
+            "goerli" => Ok(Network::Goerli),
+            "sepolia" => Ok(Network::Sepolia),
+            s => Err(Error::Other {
+                description: format!("unknown network: {}", s),
+            }),
         }
     }
 }

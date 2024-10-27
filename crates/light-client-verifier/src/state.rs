@@ -14,6 +14,7 @@ pub trait LightClientStoreReader<const SYNC_COMMITTEE_SIZE: usize> {
 }
 
 /// Returns the new current and next sync committees based on the state and the consensus update.
+///
 /// If the current sync committee should be updated, the new current sync committee is returned.
 /// If the next sync committee should be updated, the new next sync committee is returned.
 /// ref. https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#apply_light_client_update

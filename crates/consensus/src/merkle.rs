@@ -23,7 +23,7 @@ pub fn is_valid_merkle_branch(
         ));
     }
     let index = 2u64.pow(depth) + leaf_index;
-    let mut value = leaf.clone();
+    let mut value = leaf;
     for (i, b) in branch.iter().enumerate() {
         if let Some(v) = 2u64.checked_pow(i as u32) {
             if index / v % 2 == 1 {

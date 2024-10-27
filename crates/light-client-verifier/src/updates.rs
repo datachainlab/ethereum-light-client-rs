@@ -48,7 +48,7 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
             &self.finalized_execution_branch(),
             EXECUTION_PAYLOAD_DEPTH as u32,
             BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
-            self.finalized_beacon_header().body_root.clone(),
+            self.finalized_beacon_header().body_root,
         )
         .map_err(Error::InvalidFinalizedExecutionPayload)
     }

@@ -54,7 +54,7 @@ impl<
             &bootstrap.current_sync_committee_branch(),
             CURRENT_SYNC_COMMITTEE_DEPTH as u32,
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
-            bootstrap.beacon_header().state_root.clone(),
+            bootstrap.beacon_header().state_root,
         )
         .map_err(Error::InvalidCurrentSyncCommitteeMerkleBranch)?;
         Ok(())
@@ -112,7 +112,7 @@ impl<
             &update.state_root_branch(),
             EXECUTION_PAYLOAD_TREE_DEPTH as u32,
             EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
-            trusted_execution_root.clone(),
+            trusted_execution_root,
         )
         .map_err(Error::InvalidExecutionStateRootMerkleBranch)?;
 
@@ -282,6 +282,7 @@ pub fn verify_sync_committee_attestation<
 }
 
 /// validate_light_client_update validates a light client update
+///
 /// NOTE: we can skip the validation of the attested header's execution payload here because we do not reference it in the light client protocol
 pub fn validate_light_client_update<
     const SYNC_COMMITTEE_SIZE: usize,
@@ -339,7 +340,7 @@ pub fn validate_light_client_update<
         &consensus_update.finalized_beacon_header_branch(),
         FINALIZED_ROOT_DEPTH as u32,
         FINALIZED_ROOT_SUBTREE_INDEX,
-        consensus_update.attested_beacon_header().state_root.clone(),
+        consensus_update.attested_beacon_header().state_root,
     )
     .map_err(Error::InvalidFinalizedBeaconHeaderMerkleBranch)?;
 
@@ -369,8 +370,7 @@ pub fn validate_light_client_update<
                 return Err(Error::InconsistentNextSyncCommittee(
                     store_next_sync_committee.aggregate_pubkey.clone(),
                     update_next_sync_committee.aggregate_pubkey.clone(),
-                )
-                .into());
+                ));
             }
         }
         is_valid_merkle_branch(
@@ -378,13 +378,11 @@ pub fn validate_light_client_update<
             &consensus_update.next_sync_committee_branch().unwrap(),
             NEXT_SYNC_COMMITTEE_DEPTH as u32,
             NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
-            consensus_update.attested_beacon_header().state_root.clone(),
+            consensus_update.attested_beacon_header().state_root,
         )
         .map_err(Error::InvalidNextSyncCommitteeMerkleBranch)?;
-    } else {
-        if let Some(branch) = consensus_update.next_sync_committee_branch() {
-            return Err(Error::NonEmptyNextSyncCommittee(branch.to_vec()));
-        }
+    } else if let Some(branch) = consensus_update.next_sync_committee_branch() {
+        return Err(Error::NonEmptyNextSyncCommittee(branch.to_vec()));
     }
 
     Ok(())

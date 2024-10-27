@@ -80,9 +80,7 @@ pub struct PublicKeyBytesDef(
 
 impl From<PublicKeyBytesDef> for PublicKeyBytes {
     fn from(value: PublicKeyBytesDef) -> Self {
-        Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(
-            value.0.into_iter(),
-        ))
+        Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(value.0))
     }
 }
 
@@ -186,9 +184,7 @@ pub struct SignatureBytesDef(
 
 impl From<SignatureBytesDef> for SignatureBytes {
     fn from(value: SignatureBytesDef) -> Self {
-        Self(Vector::<u8, SIGNATURE_BYTES_LEN>::from_iter(
-            value.0.into_iter(),
-        ))
+        Self(Vector::<u8, SIGNATURE_BYTES_LEN>::from_iter(value.0))
     }
 }
 
