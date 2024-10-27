@@ -51,6 +51,7 @@ pub struct LightClientContext {
 }
 
 impl LightClientContext {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         fork_parameters: ForkParameters,
         seconds_per_slot: U64,
@@ -101,7 +102,7 @@ impl LightClientContext {
 
 impl ConsensusVerificationContext for LightClientContext {
     fn genesis_validators_root(&self) -> Root {
-        self.genesis_validators_root.clone()
+        self.genesis_validators_root
     }
 
     fn min_sync_committee_participants(&self) -> usize {

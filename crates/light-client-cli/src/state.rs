@@ -75,7 +75,7 @@ pub struct ExecutionUpdateInfo {
 
 impl ExecutionUpdate for ExecutionUpdateInfo {
     fn state_root(&self) -> H256 {
-        self.state_root.clone()
+        self.state_root
     }
 
     fn state_root_branch(&self) -> Vec<H256> {

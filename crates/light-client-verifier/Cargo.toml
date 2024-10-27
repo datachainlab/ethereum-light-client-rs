@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 displaydoc = { version = "0.2", default-features = false }
-log = { version = "0.4.17", default-features = false }
 
 ethereum-consensus = { path = "../consensus", default-features = false }
 trie-db = { version= "0.24.0", default-features = false }

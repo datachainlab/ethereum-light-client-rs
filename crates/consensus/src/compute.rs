@@ -52,10 +52,10 @@ pub fn compute_fork_data_root(
     current_version: Version,
     genesis_validators_root: Root,
 ) -> Result<Root, Error> {
-    Ok(hash_tree_root(ForkData {
+    hash_tree_root(ForkData {
         current_version,
         genesis_validators_root,
-    })?)
+    })
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_domain
@@ -77,10 +77,10 @@ pub fn compute_domain<C: ChainContext>(
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_signing_root
 pub fn compute_signing_root(header: BeaconBlockHeader, domain: Domain) -> Result<Root, Error> {
-    Ok(hash_tree_root(SigningData {
+    hash_tree_root(SigningData {
         object_root: hash_tree_root(header)?,
         domain,
-    })?)
+    })
 }
 
 /// hash_tree_root returns the hash tree root of the object

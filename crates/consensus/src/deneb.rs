@@ -377,7 +377,7 @@ pub fn gen_execution_payload_proof<
         H256(tree.root().unwrap()),
         tree.proof(&[9])
             .proof_hashes()
-            .into_iter()
+            .iter()
             .map(|h| H256::from_slice(h))
             .collect(),
     ))
@@ -431,7 +431,7 @@ pub fn gen_execution_payload_field_proof<
     branch.copy_from_slice(
         tree.proof(&[leaf_index])
             .proof_hashes()
-            .into_iter()
+            .iter()
             .map(|h| H256::from_slice(h))
             .collect::<Vec<H256>>()
             .as_slice(),

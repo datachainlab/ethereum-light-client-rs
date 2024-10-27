@@ -77,7 +77,7 @@ impl<
     }
 
     pub async fn init_with_bootstrap(&self, trusted_block_root: Option<H256>) -> Result<()> {
-        let bootstrap = self.chain.get_bootstrap(trusted_block_root.clone()).await?;
+        let bootstrap = self.chain.get_bootstrap(trusted_block_root).await?;
 
         self.verifier
             .validate_boostrap(&bootstrap, trusted_block_root)?;
@@ -257,7 +257,7 @@ impl<
                 info!("updates: finalized header not found");
                 return Ok(None);
             }
-            Err(e) => return Err(e.into()),
+            Err(e) => return Err(e),
         };
 
         info!(
@@ -307,7 +307,7 @@ impl<
     fn build_verification_context(&self) -> impl ChainContext + ConsensusVerificationContext {
         LightClientContext::new_with_config(
             self.ctx.config.clone(),
-            self.genesis_validators_root.clone(),
+            self.genesis_validators_root,
             self.genesis_time,
             self.trust_level.clone(),
             SystemTime::now()
@@ -375,8 +375,8 @@ impl PartialEq<Updated> for Target {
 impl PartialOrd<Updated> for Target {
     fn partial_cmp(&self, other: &Updated) -> Option<core::cmp::Ordering> {
         match self {
-            Target::Slot(v) => v.partial_cmp(&other.0.into()),
-            Target::BlockNumber(v) => v.partial_cmp(&other.1.into()),
+            Target::Slot(v) => v.partial_cmp(&other.0),
+            Target::BlockNumber(v) => v.partial_cmp(&other.1),
             Target::None => Some(core::cmp::Ordering::Less),
             Target::Infinity => Some(core::cmp::Ordering::Greater),
         }

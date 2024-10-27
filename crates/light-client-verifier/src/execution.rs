@@ -52,10 +52,10 @@ impl ExecutionVerifier {
         key: &[u8],
         proof: Vec<Vec<u8>>,
     ) -> Result<(), Error> {
-        if let Some(_) = self.verify(root, key, proof)? {
-            Err(Error::ExecutionValueExist)
-        } else {
+        if self.verify(root, key, proof)?.is_none() {
             Ok(())
+        } else {
+            Err(Error::ExecutionValueExist)
         }
     }
 
@@ -66,7 +66,7 @@ impl ExecutionVerifier {
         address: &Address,
         proof: Vec<Vec<u8>>,
     ) -> Result<Option<Account>, Error> {
-        if let Some(value) = self.verify(root, &address.0.as_slice(), proof)? {
+        if let Some(value) = self.verify(root, address.0.as_slice(), proof)? {
             Ok(Some(Account::from_rlp_bytes(&value)?))
         } else {
             Ok(None)
@@ -146,8 +146,7 @@ mod tests {
                 .unwrap();
         let address = Address(hex!("12496c9aa0e6754c897ca88c1d53fea9b19b8aff"));
 
-        let verifier = ExecutionVerifier::default();
-        let res = verifier.verify_account(root.clone(), &address, proof.clone());
+        let res = ExecutionVerifier.verify_account(root, &address, proof.clone());
         assert!(res.is_ok());
         let acc = res.unwrap();
         assert!(acc.is_some());
@@ -156,8 +155,12 @@ mod tests {
             hex!("2988BB89D212527A6054FEC481672B5CDD01BDF7287129442E82BB7569A412F9")
         );
 
-        let res =
-            verifier.verify_account_storage_root(root, &address, proof, acc.unwrap().storage_root);
+        let res = ExecutionVerifier.verify_account_storage_root(
+            root,
+            &address,
+            proof,
+            acc.unwrap().storage_root,
+        );
         assert!(res.is_ok());
         assert!(res.unwrap());
     }
