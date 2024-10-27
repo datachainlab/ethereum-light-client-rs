@@ -1,4 +1,4 @@
-use crate::context::ConsensusVerificationContext;
+use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationContext};
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use crate::misbehaviour::Misbehaviour;
@@ -15,6 +15,7 @@ use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
 };
+use ethereum_consensus::fork::Fork;
 use ethereum_consensus::merkle::is_valid_merkle_branch;
 use ethereum_consensus::sync_protocol::{
     SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
@@ -27,15 +28,11 @@ use ethereum_consensus::types::H256;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SyncProtocolVerifier<
     const SYNC_COMMITTEE_SIZE: usize,
-    const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
     ST: LightClientStoreReader<SYNC_COMMITTEE_SIZE>,
 >(PhantomData<ST>);
 
-impl<
-        const SYNC_COMMITTEE_SIZE: usize,
-        const EXECUTION_PAYLOAD_TREE_DEPTH: usize,
-        ST: LightClientStoreReader<SYNC_COMMITTEE_SIZE>,
-    > SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, EXECUTION_PAYLOAD_TREE_DEPTH, ST>
+impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE_SIZE>>
+    SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, ST>
 {
     /// validates a LightClientBootstrap
     pub fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
@@ -62,7 +59,7 @@ impl<
 
     /// validates consensus update and execution update
     pub fn validate_updates<
-        CC: ChainContext + ConsensusVerificationContext,
+        CC: ChainConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
         EU: ExecutionUpdate,
     >(
@@ -78,6 +75,7 @@ impl<
         self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
         self.validate_execution_update(
+            ctx.compute_fork(consensus_update.finalized_beacon_header().slot)?,
             consensus_update.finalized_execution_root(),
             execution_update,
         )?;
@@ -87,7 +85,7 @@ impl<
     /// validate a consensus update with a committee from the trusted store
     /// follow the light client protocol in the consensus spec
     pub fn validate_consensus_update<
-        CC: ChainContext + ConsensusVerificationContext,
+        CC: ChainConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
     >(
         &self,
@@ -104,13 +102,14 @@ impl<
     /// validate an execution update with trusted/verified beacon block body
     pub fn validate_execution_update<EU: ExecutionUpdate>(
         &self,
+        update_fork: Fork,
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
         is_valid_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
-            EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+            update_fork.execution_payload_tree_depth()? as u32,
             EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
             trusted_execution_root,
         )
@@ -119,7 +118,7 @@ impl<
         is_valid_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
-            EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+            update_fork.execution_payload_tree_depth()? as u32,
             EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
             trusted_execution_root,
         )
@@ -131,7 +130,7 @@ impl<
     /// validates a misbehaviour with the store.
     /// it returns `Ok` if the misbehaviour is valid
     pub fn validate_misbehaviour<
-        CC: ChainContext + ConsensusVerificationContext,
+        CC: ChainConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
     >(
         &self,
@@ -415,7 +414,6 @@ mod tests_bellatrix {
         beacon::Version,
         bls::aggreate_public_key,
         config::{minimal, Config},
-        fork::bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH,
         fork::{ForkParameter, ForkParameters},
         preset,
         types::U64,
@@ -428,7 +426,6 @@ mod tests_bellatrix {
     fn test_bootstrap() {
         let verifier = SyncProtocolVerifier::<
             { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
-            EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
@@ -467,7 +464,6 @@ mod tests_bellatrix {
     fn test_verification() {
         let verifier = SyncProtocolVerifier::<
             { preset::minimal::PRESET.SYNC_COMMITTEE_SIZE },
-            EXECUTION_PAYLOAD_TREE_DEPTH,
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
 
@@ -488,6 +484,7 @@ mod tests_bellatrix {
             Fraction::new(2, 3),
             1729846322.into(),
         );
+        assert!(ctx.validate().is_ok(), "context is invalid");
 
         let updates = [
             "light_client_update_period_5.json",
@@ -540,8 +537,8 @@ mod tests_bellatrix {
             fork_parameters: ForkParameters::new(
                 Version([0, 0, 0, 1]),
                 vec![
-                    ForkParameter::new(Version([2, 0, 0, 1]), U64(0)),
                     ForkParameter::new(Version([1, 0, 0, 1]), U64(0)),
+                    ForkParameter::new(Version([2, 0, 0, 1]), U64(0)),
                 ],
             ),
             min_genesis_time: U64(1578009600),

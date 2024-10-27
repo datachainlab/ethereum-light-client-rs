@@ -1,6 +1,7 @@
 use crate::{
     beacon::{Epoch, Slot},
     config::Config,
+    errors::Error,
     fork::ForkParameters,
     types::U64,
 };
@@ -46,6 +47,11 @@ impl DefaultChainContext {
             config.preset.SLOTS_PER_EPOCH,
             config.preset.EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
         )
+    }
+
+    pub fn validate(&self) -> Result<(), Error> {
+        self.fork_parameters.validate()?;
+        Ok(())
     }
 }
 

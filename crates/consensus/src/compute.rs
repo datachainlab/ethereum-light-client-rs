@@ -66,7 +66,7 @@ pub fn compute_domain<C: ChainContext>(
     genesis_validators_root: Option<Root>,
 ) -> Result<Domain, Error> {
     let fork_data_root = compute_fork_data_root(
-        fork_version.unwrap_or(ctx.fork_parameters().genesis_version.clone()),
+        fork_version.unwrap_or(ctx.fork_parameters().genesis_version().clone()),
         genesis_validators_root.unwrap_or_default(),
     )?;
     let mut domain: [u8; 32] = Default::default();
@@ -96,6 +96,7 @@ mod tests {
     #[test]
     fn test_compute_timestamp_at_slot() {
         let ctx = DefaultChainContext::new_with_config(1729846322.into(), get_minimal_config());
+        assert!(ctx.validate().is_ok(), "context is invalid");
         assert_eq!(compute_timestamp_at_slot(&ctx, 0.into()), 1729846322.into());
         assert_eq!(compute_timestamp_at_slot(&ctx, 1.into()), 1729846328.into());
         assert_eq!(compute_timestamp_at_slot(&ctx, 2.into()), 1729846334.into());

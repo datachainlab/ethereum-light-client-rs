@@ -13,13 +13,13 @@ use ethereum_consensus::{
         BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
         EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
     },
-    fork::deneb::{self, LightClientUpdate, EXECUTION_PAYLOAD_TREE_DEPTH},
+    fork::deneb::{self, LightClientUpdate},
     sync_protocol::SyncCommitteePeriod,
     types::{H256, U64},
 };
 use ethereum_light_client_verifier::{
     consensus::SyncProtocolVerifier,
-    context::{ConsensusVerificationContext, Fraction, LightClientContext},
+    context::{ChainConsensusVerificationContext, Fraction, LightClientContext},
     state::should_update_sync_committees,
     updates::{deneb::ConsensusUpdateInfo, ConsensusUpdate},
 };
@@ -45,7 +45,6 @@ pub struct LightClient<
     chain: Chain,
     verifier: SyncProtocolVerifier<
         SYNC_COMMITTEE_SIZE,
-        EXECUTION_PAYLOAD_TREE_DEPTH,
         LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     >,
     genesis_time: U64,
@@ -245,7 +244,7 @@ impl<
 
     async fn process_light_client_update(
         &self,
-        vctx: &(impl ChainContext + ConsensusVerificationContext),
+        vctx: &impl ChainConsensusVerificationContext,
         update: LightClientUpdate<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
         state: &LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     ) -> Result<
@@ -304,7 +303,7 @@ impl<
         }
     }
 
-    fn build_verification_context(&self) -> impl ChainContext + ConsensusVerificationContext {
+    fn build_verification_context(&self) -> impl ChainConsensusVerificationContext {
         LightClientContext::new_with_config(
             self.ctx.config.clone(),
             self.genesis_validators_root,

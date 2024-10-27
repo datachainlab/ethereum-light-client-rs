@@ -366,7 +366,7 @@ pub fn gen_execution_payload_field_proof<
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{
         gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
     };
@@ -495,6 +495,7 @@ mod test {
         // ensure that signing_root calculation is correct
 
         let ctx = DefaultChainContext::new_with_config(0.into(), config::mainnet::get_config());
+        assert!(ctx.validate().is_ok(), "context is invalid");
         let fork_version =
             compute_fork_version(&ctx, compute_epoch_at_slot(&ctx, update.signature_slot)).unwrap();
         let domain = compute_domain(
