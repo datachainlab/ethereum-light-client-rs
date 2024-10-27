@@ -1,5 +1,5 @@
 use crate::context::ConsensusVerificationContext;
-use crate::errors::{Error, MisbehaviourError};
+use crate::errors::Error;
 use crate::internal_prelude::*;
 use crate::misbehaviour::Misbehaviour;
 use crate::state::LightClientStoreReader;
@@ -366,7 +366,7 @@ pub fn validate_light_client_update<
             if update_attested_period == store_period
                 && store_next_sync_committee != update_next_sync_committee
             {
-                return Err(MisbehaviourError::InconsistentNextSyncCommittee(
+                return Err(Error::InconsistentNextSyncCommittee(
                     store_next_sync_committee.aggregate_pubkey.clone(),
                     update_next_sync_committee.aggregate_pubkey.clone(),
                 )

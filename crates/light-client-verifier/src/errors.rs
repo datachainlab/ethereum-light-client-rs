@@ -47,8 +47,6 @@ pub enum Error {
     CommonError(ethereum_consensus::errors::Error),
     /// rlp decoder error: `{0:?}`
     RlpDecoderError(rlp::DecoderError),
-    /// misbehaviour error: `{0}`
-    Misbehaviour(MisbehaviourError),
     /// both updates of misbehaviour data must have same period: {0} != {1}
     DifferentPeriodInNextSyncCommitteeMisbehaviour(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have next sync committee
@@ -79,6 +77,8 @@ pub enum Error {
     InvalidExecutionStateRootMerkleBranch(MerkleError),
     /// invalid merkle branch of execution block number: `error={0}`
     InvalidExecutionBlockNumberMerkleBranch(MerkleError),
+    /// inconsistent next sync committee: `store:{0:?}` != `update:{1:?}`
+    InconsistentNextSyncCommittee(PublicKey, PublicKey),
     /// other error: `{description}`
     Other { description: String },
 }
@@ -101,20 +101,5 @@ impl From<ethereum_consensus::errors::Error> for Error {
 impl From<rlp::DecoderError> for Error {
     fn from(value: rlp::DecoderError) -> Self {
         Self::RlpDecoderError(value)
-    }
-}
-
-#[derive(Debug, Display)]
-pub enum MisbehaviourError {
-    /// next sync committee: `{0:?} != {1:?}`
-    InconsistentNextSyncCommittee(PublicKey, PublicKey),
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for MisbehaviourError {}
-
-impl From<MisbehaviourError> for Error {
-    fn from(value: MisbehaviourError) -> Self {
-        Self::Misbehaviour(value)
     }
 }
