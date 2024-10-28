@@ -7,10 +7,7 @@ use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     compute::hash_tree_root,
     fork::capella::LightClientUpdate,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
-        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::H256,
 };
 
@@ -59,8 +56,8 @@ impl<
     fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
         &self.0.current_sync_committee
     }
-    fn current_sync_committee_branch(&self) -> [H256; CURRENT_SYNC_COMMITTEE_DEPTH] {
-        self.0.current_sync_committee_branch
+    fn current_sync_committee_branch(&self) -> Vec<H256> {
+        self.0.current_sync_committee_branch.to_vec()
     }
 }
 
@@ -98,14 +95,14 @@ impl<
     fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
         self.next_sync_committee.as_ref().map(|c| &c.0)
     }
-    fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]> {
-        self.next_sync_committee.as_ref().map(|c| c.1)
+    fn next_sync_committee_branch(&self) -> Option<Vec<H256>> {
+        self.next_sync_committee.as_ref().map(|c| c.1.to_vec())
     }
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader {
         &self.finalized_header.beacon
     }
-    fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
-        self.finality_branch
+    fn finalized_beacon_header_branch(&self) -> Vec<H256> {
+        self.finality_branch.to_vec()
     }
     fn finalized_execution_root(&self) -> H256 {
         hash_tree_root(self.finalized_header.execution.clone())
@@ -113,8 +110,8 @@ impl<
             .0
             .into()
     }
-    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
-        self.finalized_header.execution_branch
+    fn finalized_execution_branch(&self) -> Vec<H256> {
+        self.finalized_header.execution_branch.to_vec()
     }
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
         &self.sync_aggregate

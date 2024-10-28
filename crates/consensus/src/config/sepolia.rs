@@ -2,8 +2,8 @@ use super::Config;
 use crate::{
     beacon::Version,
     fork::{
-        bellatrix::BELLATRIX_FORK_SPEC, capella::CAPELLA_FORK_SPEC, deneb::DENEB_FORK_SPEC,
-        ForkParameter, ForkParameters, ALTAIR_FORK_SPEC,
+        altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, capella::CAPELLA_FORK_SPEC,
+        deneb::DENEB_FORK_SPEC, ForkParameter, ForkParameters,
     },
     internal_prelude::*,
     preset,

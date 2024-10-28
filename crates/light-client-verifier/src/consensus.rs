@@ -15,13 +15,13 @@ use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
 };
-use ethereum_consensus::fork::ForkSpec;
-use ethereum_consensus::merkle::is_valid_merkle_branch;
-use ethereum_consensus::sync_protocol::{
-    SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
-    FINALIZED_ROOT_DEPTH, FINALIZED_ROOT_SUBTREE_INDEX, NEXT_SYNC_COMMITTEE_DEPTH,
+use ethereum_consensus::fork::altair::{
+    CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX,
     NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
 };
+use ethereum_consensus::fork::ForkSpec;
+use ethereum_consensus::merkle::is_valid_merkle_branch;
+use ethereum_consensus::sync_protocol::SyncCommittee;
 use ethereum_consensus::types::H256;
 
 /// SyncProtocolVerifier is a verifier of [light client sync protocol](https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md)
@@ -35,8 +35,12 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
     SyncProtocolVerifier<SYNC_COMMITTEE_SIZE, ST>
 {
     /// validates a LightClientBootstrap
-    pub fn validate_boostrap<LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>>(
+    pub fn validate_boostrap<
+        CC: ChainConsensusVerificationContext,
+        LB: LightClientBootstrap<SYNC_COMMITTEE_SIZE>,
+    >(
         &self,
+        ctx: &CC,
         bootstrap: &LB,
         trusted_block_root: Option<Root>,
     ) -> Result<(), Error> {
@@ -46,10 +50,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
                 return Err(Error::TrustedRootMismatch(trusted_block_root, root));
             }
         }
+        let fork_spec = ctx.compute_fork_spec(bootstrap.beacon_header().slot);
         is_valid_merkle_branch(
             hash_tree_root(bootstrap.current_sync_committee().clone())?,
             &bootstrap.current_sync_committee_branch(),
-            CURRENT_SYNC_COMMITTEE_DEPTH as u32,
+            fork_spec.current_sync_committee_depth,
             CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
             bootstrap.beacon_header().state_root,
         )
@@ -288,7 +293,7 @@ pub fn verify_sync_committee_attestation<
 /// NOTE: we can skip the validation of the attested header's execution payload here because we do not reference it in the light client protocol
 pub fn validate_light_client_update<
     const SYNC_COMMITTEE_SIZE: usize,
-    CC: ChainContext,
+    CC: ChainConsensusVerificationContext,
     ST: LightClientStoreReader<SYNC_COMMITTEE_SIZE>,
     CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
 >(
@@ -334,13 +339,14 @@ pub fn validate_light_client_update<
         if consensus_update.finalized_beacon_header() == &BeaconBlockHeader::default() {
             return Err(Error::FinalizedHeaderNotFound);
         }
-        consensus_update.is_valid_light_client_finalized_header()?;
+        consensus_update.is_valid_light_client_finalized_header(ctx)?;
         hash_tree_root(consensus_update.finalized_beacon_header().clone())?
     };
     is_valid_merkle_branch(
         finalized_root,
         &consensus_update.finalized_beacon_header_branch(),
-        FINALIZED_ROOT_DEPTH as u32,
+        ctx.compute_fork_spec(consensus_update.attested_beacon_header().slot)
+            .finalized_root_depth,
         FINALIZED_ROOT_SUBTREE_INDEX,
         consensus_update.attested_beacon_header().state_root,
     )
@@ -378,7 +384,8 @@ pub fn validate_light_client_update<
         is_valid_merkle_branch(
             hash_tree_root(update_next_sync_committee.clone())?,
             &consensus_update.next_sync_committee_branch().unwrap(),
-            NEXT_SYNC_COMMITTEE_DEPTH as u32,
+            ctx.compute_fork_spec(consensus_update.attested_beacon_header().slot)
+                .next_sync_committee_depth,
             NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
             consensus_update.attested_beacon_header().state_root,
         )
@@ -417,7 +424,9 @@ mod tests_bellatrix {
         beacon::Version,
         bls::aggreate_public_key,
         config::{minimal, Config},
-        fork::{bellatrix::BELLATRIX_FORK_SPEC, ForkParameter, ForkParameters, ALTAIR_FORK_SPEC},
+        fork::{
+            altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, ForkParameter, ForkParameters,
+        },
         preset,
         types::U64,
     };
@@ -432,8 +441,16 @@ mod tests_bellatrix {
             MockStore<{ preset::minimal::PRESET.SYNC_COMMITTEE_SIZE }>,
         >::default();
         let path = format!("{}/initial_state.json", TEST_DATA_DIR);
-        let (bootstrap, _, _) = get_init_state(path);
-        assert!(verifier.validate_boostrap(&bootstrap, None).is_ok());
+        let (bootstrap, _, genesis_validators_root) = get_init_state(path);
+        let ctx = LightClientContext::new_with_config(
+            get_minimal_bellatrix_config(),
+            genesis_validators_root,
+            // NOTE: this is workaround. we must get the correct timestamp from beacon state.
+            minimal::get_config().min_genesis_time,
+            Fraction::new(2, 3),
+            1729846322.into(),
+        );
+        assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
     }
 
     #[test]
@@ -472,13 +489,6 @@ mod tests_bellatrix {
 
         let (bootstrap, execution_payload_state_root, genesis_validators_root) =
             get_init_state(format!("{}/initial_state.json", TEST_DATA_DIR));
-        assert!(verifier.validate_boostrap(&bootstrap, None).is_ok());
-
-        let mut store = MockStore::new(
-            bootstrap.beacon_header().clone(),
-            bootstrap.current_sync_committee().clone(),
-            execution_payload_state_root,
-        );
         let ctx = LightClientContext::new_with_config(
             get_minimal_bellatrix_config(),
             genesis_validators_root,
@@ -486,6 +496,13 @@ mod tests_bellatrix {
             minimal::get_config().min_genesis_time,
             Fraction::new(2, 3),
             1729846322.into(),
+        );
+        assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
+
+        let mut store = MockStore::new(
+            bootstrap.beacon_header().clone(),
+            bootstrap.current_sync_committee().clone(),
+            execution_payload_state_root,
         );
 
         let updates = [

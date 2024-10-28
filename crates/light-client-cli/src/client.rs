@@ -78,8 +78,9 @@ impl<
     pub async fn init_with_bootstrap(&self, trusted_block_root: Option<H256>) -> Result<()> {
         let bootstrap = self.chain.get_bootstrap(trusted_block_root).await?;
 
+        let vctx = self.build_verification_context();
         self.verifier
-            .validate_boostrap(&bootstrap, trusted_block_root)?;
+            .validate_boostrap(&vctx, &bootstrap, trusted_block_root)?;
 
         let state = LightClientStore::from_bootstrap(
             bootstrap.clone().0,

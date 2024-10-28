@@ -39,6 +39,7 @@ pub trait ConsensusVerificationContext {
 pub trait ChainConsensusVerificationContext:
     ChainContext + ConsensusVerificationContext + Sized
 {
+    /// Compute the fork spec at the given slot
     fn compute_fork_spec(&self, slot: U64) -> ForkSpec {
         self.fork_parameters()
             .compute_fork_spec(compute_epoch_at_slot(self, slot))

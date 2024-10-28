@@ -1,3 +1,4 @@
+pub mod altair;
 pub mod bellatrix;
 pub mod capella;
 pub mod deneb;
@@ -8,10 +9,10 @@ use crate::internal_prelude::*;
 use crate::types::U64;
 
 pub const GENESIS_SPEC: ForkSpec = ForkSpec {
-    execution_payload_tree_depth: 0,
-};
-
-pub const ALTAIR_FORK_SPEC: ForkSpec = ForkSpec {
+    finalized_root_depth: 0,
+    current_sync_committee_depth: 0,
+    next_sync_committee_depth: 0,
+    execution_payload_depth: 0,
     execution_payload_tree_depth: 0,
 };
 
@@ -76,6 +77,10 @@ impl ForkParameters {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ForkSpec {
+    pub finalized_root_depth: u32,
+    pub current_sync_committee_depth: u32,
+    pub next_sync_committee_depth: u32,
+    pub execution_payload_depth: u32,
     pub execution_payload_tree_depth: u32,
 }
 
@@ -100,6 +105,7 @@ impl ForkParameter {
 
 #[cfg(test)]
 mod tests {
+    use altair::ALTAIR_FORK_SPEC;
     use bellatrix::BELLATRIX_FORK_SPEC;
     use capella::CAPELLA_FORK_SPEC;
     use deneb::DENEB_FORK_SPEC;

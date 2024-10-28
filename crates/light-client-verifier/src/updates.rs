@@ -1,13 +1,10 @@
-use crate::context::ConsensusVerificationContext;
+use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationContext};
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX},
     merkle::is_valid_merkle_branch,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
-        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::{H256, U64},
 };
 pub mod bellatrix;
@@ -19,7 +16,8 @@ pub trait LightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize>:
 {
     fn beacon_header(&self) -> &BeaconBlockHeader;
     fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE>;
-    fn current_sync_committee_branch(&self) -> [H256; CURRENT_SYNC_COMMITTEE_DEPTH];
+    /// length of the branch should be `CURRENT_SYNC_COMMITTEE_DEPTH`
+    fn current_sync_committee_branch(&self) -> Vec<H256>;
 }
 
 /// ConsensusUpdate is an update info of the consensus layer corresponding to a specific light client update
@@ -29,24 +27,31 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
     fn attested_beacon_header(&self) -> &BeaconBlockHeader;
 
     fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>>;
-    fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]>;
+    /// length of the branch should be `NEXT_SYNC_COMMITTEE_DEPTH`
+    fn next_sync_committee_branch(&self) -> Option<Vec<H256>>;
 
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader;
-    fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH];
+    /// length of the branch should be `FINALIZED_ROOT_DEPTH`
+    fn finalized_beacon_header_branch(&self) -> Vec<H256>;
 
     fn finalized_execution_root(&self) -> H256;
-    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH];
+    /// length of the branch should be `EXECUTION_PAYLOAD_DEPTH`
+    fn finalized_execution_branch(&self) -> Vec<H256>;
 
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE>;
     fn signature_slot(&self) -> Slot;
 
     /// ref. https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#is_valid_light_client_header
     /// NOTE: There are no validation for the execution payload, so you should implement it if the update contains the execution payload.
-    fn is_valid_light_client_finalized_header(&self) -> Result<(), Error> {
+    fn is_valid_light_client_finalized_header<C: ChainConsensusVerificationContext>(
+        &self,
+        ctx: &C,
+    ) -> Result<(), Error> {
+        let spec = ctx.compute_fork_spec(self.finalized_beacon_header().slot);
         is_valid_merkle_branch(
             self.finalized_execution_root(),
             &self.finalized_execution_branch(),
-            EXECUTION_PAYLOAD_DEPTH as u32,
+            spec.execution_payload_depth,
             BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
             self.finalized_beacon_header().body_root,
         )

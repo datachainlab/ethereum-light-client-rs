@@ -1,4 +1,4 @@
-use super::ForkSpec;
+use super::{capella, ForkSpec};
 use crate::{
     beacon::{
         Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
@@ -10,20 +10,15 @@ use crate::{
     execution::BlockNumber,
     internal_prelude::*,
     merkle::MerkleTree,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
-        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
-/// Execution payload tree depth
-pub const EXECUTION_PAYLOAD_TREE_DEPTH: u32 = 5;
-
 pub const DENEB_FORK_SPEC: ForkSpec = ForkSpec {
-    execution_payload_tree_depth: EXECUTION_PAYLOAD_TREE_DEPTH,
+    execution_payload_tree_depth: 5,
+    ..capella::CAPELLA_FORK_SPEC
 };
 
 /// Beacon Block
@@ -285,7 +280,8 @@ pub struct LightClientBootstrap<
     pub header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Current sync committee corresponding to `beacon_header.state_root`
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    pub current_sync_committee_branch: [H256; CURRENT_SYNC_COMMITTEE_DEPTH],
+    pub current_sync_committee_branch:
+        [H256; DENEB_FORK_SPEC.current_sync_committee_depth as usize],
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -299,11 +295,11 @@ pub struct LightClientUpdate<
     /// Next sync committee corresponding to `attested_header.state_root`
     pub next_sync_committee: Option<(
         SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        [H256; NEXT_SYNC_COMMITTEE_DEPTH],
+        [H256; DENEB_FORK_SPEC.next_sync_committee_depth as usize],
     )>,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
+    pub finality_branch: [H256; DENEB_FORK_SPEC.finalized_root_depth as usize],
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -315,7 +311,7 @@ pub struct LightClientHeader<const BYTES_PER_LOGS_BLOOM: usize, const MAX_EXTRA_
     /// Header matching the requested beacon block root
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
+    pub execution_branch: [H256; DENEB_FORK_SPEC.execution_payload_depth as usize],
 }
 
 // TODO each fork's prover implementation is redundant
@@ -394,7 +390,13 @@ pub fn gen_execution_payload_field_proof<
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     leaf_index: usize,
-) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH as usize]), Error> {
+) -> Result<
+    (
+        Root,
+        [H256; DENEB_FORK_SPEC.execution_payload_tree_depth as usize],
+    ),
+    Error,
+> {
     let tree = MerkleTree::from_leaves(
         ([
             payload.parent_hash.0,
@@ -432,7 +434,7 @@ pub fn gen_execution_payload_field_proof<
         ] as [_; 32])
             .as_ref(),
     );
-    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH as usize];
+    let mut branch = [Default::default(); DENEB_FORK_SPEC.execution_payload_tree_depth as usize];
     branch.copy_from_slice(
         tree.proof(&[leaf_index])
             .proof_hashes()
@@ -449,7 +451,6 @@ mod tests {
     use super::*;
     use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
     use crate::merkle::is_valid_merkle_branch;
-    use crate::sync_protocol::EXECUTION_PAYLOAD_DEPTH;
     use crate::{compute::hash_tree_root, types::H256};
     use ssz_rs::Merkleized;
     use std::fs;
@@ -487,7 +488,7 @@ mod tests {
         assert!(is_valid_merkle_branch(
             H256::from_slice(payload_root.as_bytes()),
             &payload_proof,
-            EXECUTION_PAYLOAD_DEPTH as u32,
+            DENEB_FORK_SPEC.execution_payload_depth,
             BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
             block_root
         )
@@ -504,7 +505,7 @@ mod tests {
             assert!(is_valid_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH,
+                DENEB_FORK_SPEC.execution_payload_tree_depth,
                 EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
                 root,
             )
@@ -524,7 +525,7 @@ mod tests {
                     .0
                     .into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH,
+                DENEB_FORK_SPEC.execution_payload_tree_depth,
                 EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
                 root,
             )

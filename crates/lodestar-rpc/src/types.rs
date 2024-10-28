@@ -1,12 +1,9 @@
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Checkpoint, Root, Slot},
     bls::Signature,
-    fork::deneb::{LightClientBootstrap, LightClientHeader, LightClientUpdate},
+    fork::deneb::{LightClientBootstrap, LightClientHeader, LightClientUpdate, DENEB_FORK_SPEC},
     preset::mainnet::DenebBeaconBlock,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, FINALIZED_ROOT_DEPTH,
-        NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::{H256, U64},
 };
 
@@ -102,7 +99,7 @@ pub struct LightClientFinalityUpdateData<
     pub attested_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
+    pub finality_branch: [H256; DENEB_FORK_SPEC.finalized_root_depth as usize],
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -158,7 +155,8 @@ pub struct LightClientBootstrapData<
 > {
     pub header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    pub current_sync_committee_branch: [H256; CURRENT_SYNC_COMMITTEE_DEPTH],
+    pub current_sync_committee_branch:
+        [H256; DENEB_FORK_SPEC.current_sync_committee_depth as usize],
 }
 
 impl<
@@ -214,9 +212,9 @@ pub struct LightClientUpdateData<
 > {
     pub attested_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     pub next_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    pub next_sync_committee_branch: [H256; NEXT_SYNC_COMMITTEE_DEPTH],
+    pub next_sync_committee_branch: [H256; DENEB_FORK_SPEC.next_sync_committee_depth as usize],
     pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
+    pub finality_branch: [H256; DENEB_FORK_SPEC.finalized_root_depth as usize],
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     pub signature_slot: Slot,
 }
