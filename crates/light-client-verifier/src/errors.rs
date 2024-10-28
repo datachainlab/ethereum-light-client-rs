@@ -75,6 +75,8 @@ pub enum Error {
     InvalidCurrentSyncCommitteeMerkleBranch(MerkleError),
     /// invalid merkle branch of execution state root: `error={0}`
     InvalidExecutionStateRootMerkleBranch(MerkleError),
+    /// the current fork does not contain the execution payload in the beacon block
+    NoExecutionPayloadInBeaconBlock,
     /// invalid merkle branch of execution block number: `error={0}`
     InvalidExecutionBlockNumberMerkleBranch(MerkleError),
     /// inconsistent next sync committee: `store:{0:?}` != `update:{1:?}`

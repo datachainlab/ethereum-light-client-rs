@@ -106,6 +106,9 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
+        if update_fork_spec.execution_payload_tree_depth == 0 {
+            return Err(Error::NoExecutionPayloadInBeaconBlock);
+        }
         is_valid_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
