@@ -91,7 +91,12 @@ pub fn hash_tree_root<T: ssz_rs::SimpleSerialize>(mut object: T) -> Result<Root,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{config::Config, context::DefaultChainContext, fork::ForkParameters, preset};
+    use crate::{
+        config::Config,
+        context::DefaultChainContext,
+        fork::{altair::ALTAIR_FORK_SPEC, ForkParameter, ForkParameters},
+        preset,
+    };
 
     #[test]
     fn test_compute_timestamp_at_slot() {
@@ -108,7 +113,15 @@ mod tests {
     fn get_minimal_config() -> Config {
         Config {
             preset: preset::minimal::PRESET,
-            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]).unwrap(),
+            fork_parameters: ForkParameters::new(
+                Version([0, 0, 0, 1]),
+                vec![ForkParameter::new(
+                    Version([1, 0, 0, 1]),
+                    U64(0),
+                    ALTAIR_FORK_SPEC,
+                )],
+            )
+            .unwrap(),
             min_genesis_time: U64(1578009600),
         }
     }

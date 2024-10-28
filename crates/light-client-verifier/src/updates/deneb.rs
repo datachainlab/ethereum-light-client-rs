@@ -1,5 +1,6 @@
 pub use super::bellatrix::ExecutionUpdateInfo;
 use super::{ConsensusUpdate, LightClientBootstrap};
+use crate::internal_prelude::*;
 use core::ops::Deref;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},

@@ -1,13 +1,12 @@
 use super::{altair, ForkSpec};
 use crate::{
     beacon::{
-        Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
-        Root, SignedVoluntaryExit, Slot, ValidatorIndex, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX,
+        Attestation, AttesterSlashing, BeaconBlockHeader, BlockNumber, Deposit, Eth1Data,
+        ProposerSlashing, Root, SignedVoluntaryExit, Slot, ValidatorIndex,
     },
     bls::Signature,
     compute::hash_tree_root,
     errors::Error,
-    execution::BlockNumber,
     internal_prelude::*,
     merkle::MerkleTree,
     sync_protocol::{SyncAggregate, SyncCommittee},
@@ -17,7 +16,9 @@ use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
 pub const BELLATRIX_FORK_SPEC: ForkSpec = ForkSpec {
-    execution_payload_tree_depth: 4,
+    execution_payload_gindex: 25,
+    execution_payload_state_root_gindex: 18,
+    execution_payload_block_number_gindex: 22,
     ..altair::ALTAIR_FORK_SPEC
 };
 
@@ -240,8 +241,7 @@ pub struct LightClientBootstrap<const SYNC_COMMITTEE_SIZE: usize> {
     pub beacon_header: BeaconBlockHeader,
     /// Current sync committee corresponding to `beacon_header.state_root`
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    pub current_sync_committee_branch:
-        [H256; BELLATRIX_FORK_SPEC.current_sync_committee_depth as usize],
+    pub current_sync_committee_branch: Vec<H256>,
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#lightclientupdate
@@ -250,89 +250,13 @@ pub struct LightClientUpdate<const SYNC_COMMITTEE_SIZE: usize> {
     /// Header attested to by the sync committee
     pub attested_header: BeaconBlockHeader,
     /// Next sync committee corresponding to `attested_header.state_root`
-    pub next_sync_committee: Option<(
-        SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        [H256; BELLATRIX_FORK_SPEC.next_sync_committee_depth as usize],
-    )>,
+    pub next_sync_committee: Option<(SyncCommittee<SYNC_COMMITTEE_SIZE>, Vec<H256>)>,
     /// Finalized header corresponding to `attested_header.state_root`
-    pub finalized_header: (
-        BeaconBlockHeader,
-        [H256; BELLATRIX_FORK_SPEC.finalized_root_depth as usize],
-    ),
+    pub finalized_header: (BeaconBlockHeader, Vec<H256>),
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
     pub signature_slot: Slot,
-}
-
-// TODO each fork's prover implementation is redundant
-
-pub fn gen_execution_payload_proof<
-    const MAX_PROPOSER_SLASHINGS: usize,
-    const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    const MAX_ATTESTER_SLASHINGS: usize,
-    const MAX_ATTESTATIONS: usize,
-    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    const MAX_DEPOSITS: usize,
-    const MAX_VOLUNTARY_EXITS: usize,
-    const BYTES_PER_LOGS_BLOOM: usize,
-    const MAX_EXTRA_DATA_BYTES: usize,
-    const MAX_BYTES_PER_TRANSACTION: usize,
-    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-    const SYNC_COMMITTEE_SIZE: usize,
->(
-    body: &BeaconBlockBody<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        SYNC_COMMITTEE_SIZE,
-    >,
-) -> Result<
-    (
-        Root,
-        [H256; BELLATRIX_FORK_SPEC.execution_payload_depth as usize],
-    ),
-    Error,
-> {
-    let tree = MerkleTree::from_leaves(
-        ([
-            hash_tree_root(body.randao_reveal.clone()).unwrap().0,
-            hash_tree_root(body.eth1_data.clone()).unwrap().0,
-            body.graffiti.0,
-            hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attester_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attestations.clone()).unwrap().0,
-            hash_tree_root(body.deposits.clone()).unwrap().0,
-            hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
-            hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
-            hash_tree_root(body.execution_payload.clone()).unwrap().0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ] as [_; 16])
-            .as_ref(),
-    );
-    let mut branch = [Default::default(); BELLATRIX_FORK_SPEC.execution_payload_depth as usize];
-    branch.copy_from_slice(
-        tree.proof(&[BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX])
-            .proof_hashes()
-            .iter()
-            .map(|h| H256::from_slice(h))
-            .collect::<Vec<H256>>()
-            .as_slice(),
-    );
-    Ok((H256(tree.root().unwrap()), branch))
 }
 
 pub fn gen_execution_payload_field_proof<
@@ -340,14 +264,8 @@ pub fn gen_execution_payload_field_proof<
     const MAX_EXTRA_DATA_BYTES: usize,
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    leaf_index: usize,
-) -> Result<
-    (
-        Root,
-        [H256; BELLATRIX_FORK_SPEC.execution_payload_tree_depth as usize],
-    ),
-    Error,
-> {
+    subtree_index: usize,
+) -> Result<(Root, Vec<H256>), Error> {
     let tree = MerkleTree::from_leaves(
         ([
             payload.parent_hash.0,
@@ -369,27 +287,21 @@ pub fn gen_execution_payload_field_proof<
         ] as [_; 16])
             .as_ref(),
     );
-    let mut branch =
-        [Default::default(); BELLATRIX_FORK_SPEC.execution_payload_tree_depth as usize];
-    branch.copy_from_slice(
-        tree.proof(&[leaf_index])
+    Ok((
+        H256(tree.root().unwrap()),
+        tree.proof(&[subtree_index])
             .proof_hashes()
             .iter()
             .map(|h| H256::from_slice(h))
-            .collect::<Vec<H256>>()
-            .as_slice(),
-    );
-    Ok((H256(tree.root().unwrap()), branch))
+            .collect::<Vec<H256>>(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
-    };
-    use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
+    use super::*;
     use crate::fork::bellatrix::{LightClientUpdate, BELLATRIX_FORK_SPEC};
-    use crate::merkle::is_valid_merkle_branch;
+    use crate::merkle::{get_subtree_index, is_valid_normalized_merkle_branch};
     use crate::sync_protocol::SyncCommittee;
     use crate::{
         beacon::DOMAIN_SYNC_COMMITTEE,
@@ -408,9 +320,6 @@ mod tests {
 
     #[test]
     fn beacon_block_serialization() {
-        use crate::execution::{
-            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
-        };
         let mut header: BeaconBlockHeader = serde_json::from_str(
             &fs::read_to_string("./data/goerli_bellatrix_header_4825088.json").unwrap(),
         )
@@ -436,11 +345,10 @@ mod tests {
         let payload_root = block.body.execution_payload.hash_tree_root().unwrap();
         let payload_header = block.body.execution_payload.clone().to_header();
 
-        assert!(is_valid_merkle_branch(
+        assert!(is_valid_normalized_merkle_branch(
             H256::from_slice(payload_root.as_bytes()),
             &payload_proof,
-            BELLATRIX_FORK_SPEC.execution_payload_depth,
-            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
+            BELLATRIX_FORK_SPEC.execution_payload_gindex,
             block_root
         )
         .is_ok());
@@ -448,16 +356,14 @@ mod tests {
         {
             let (root, proof) = gen_execution_payload_field_proof(
                 &payload_header,
-                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+                get_subtree_index(BELLATRIX_FORK_SPEC.execution_payload_state_root_gindex) as usize,
             )
             .unwrap();
             assert_eq!(root.as_bytes(), payload_root.as_bytes());
-
-            assert!(is_valid_merkle_branch(
+            assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
                 &proof,
-                BELLATRIX_FORK_SPEC.execution_payload_tree_depth,
-                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
+                BELLATRIX_FORK_SPEC.execution_payload_state_root_gindex,
                 root,
             )
             .is_ok());
@@ -465,19 +371,18 @@ mod tests {
         {
             let (root, proof) = gen_execution_payload_field_proof(
                 &payload_header,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+                get_subtree_index(BELLATRIX_FORK_SPEC.execution_payload_block_number_gindex)
+                    as usize,
             )
             .unwrap();
             assert_eq!(root.as_bytes(), payload_root.as_bytes());
-
-            assert!(is_valid_merkle_branch(
+            assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.block_number)
                     .unwrap()
                     .0
                     .into(),
                 &proof,
-                BELLATRIX_FORK_SPEC.execution_payload_tree_depth,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
+                BELLATRIX_FORK_SPEC.execution_payload_block_number_gindex,
                 root,
             )
             .is_ok());
@@ -550,5 +455,65 @@ mod tests {
         );
         assert!(res.is_ok());
         assert!(res.unwrap());
+    }
+
+    fn gen_execution_payload_proof<
+        const MAX_PROPOSER_SLASHINGS: usize,
+        const MAX_VALIDATORS_PER_COMMITTEE: usize,
+        const MAX_ATTESTER_SLASHINGS: usize,
+        const MAX_ATTESTATIONS: usize,
+        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+        const MAX_DEPOSITS: usize,
+        const MAX_VOLUNTARY_EXITS: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+        const MAX_BYTES_PER_TRANSACTION: usize,
+        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const SYNC_COMMITTEE_SIZE: usize,
+    >(
+        body: &BeaconBlockBody<
+            MAX_PROPOSER_SLASHINGS,
+            MAX_VALIDATORS_PER_COMMITTEE,
+            MAX_ATTESTER_SLASHINGS,
+            MAX_ATTESTATIONS,
+            DEPOSIT_CONTRACT_TREE_DEPTH,
+            MAX_DEPOSITS,
+            MAX_VOLUNTARY_EXITS,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+            MAX_BYTES_PER_TRANSACTION,
+            MAX_TRANSACTIONS_PER_PAYLOAD,
+            SYNC_COMMITTEE_SIZE,
+        >,
+    ) -> Result<(Root, Vec<H256>), Error> {
+        let tree = MerkleTree::from_leaves(
+            ([
+                hash_tree_root(body.randao_reveal.clone()).unwrap().0,
+                hash_tree_root(body.eth1_data.clone()).unwrap().0,
+                body.graffiti.0,
+                hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attester_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attestations.clone()).unwrap().0,
+                hash_tree_root(body.deposits.clone()).unwrap().0,
+                hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
+                hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
+                hash_tree_root(body.execution_payload.clone()).unwrap().0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ] as [_; 16])
+                .as_ref(),
+        );
+        Ok((
+            H256(tree.root().unwrap()),
+            tree.proof(&[get_subtree_index(BELLATRIX_FORK_SPEC.execution_payload_gindex) as usize])
+                .proof_hashes()
+                .iter()
+                .map(|h| H256::from_slice(h))
+                .collect::<Vec<H256>>(),
+        ))
     }
 }

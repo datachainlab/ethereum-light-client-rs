@@ -9,11 +9,12 @@ use crate::internal_prelude::*;
 use crate::types::U64;
 
 pub const GENESIS_SPEC: ForkSpec = ForkSpec {
-    finalized_root_depth: 0,
-    current_sync_committee_depth: 0,
-    next_sync_committee_depth: 0,
-    execution_payload_depth: 0,
-    execution_payload_tree_depth: 0,
+    finalized_root_gindex: 105,
+    current_sync_committee_gindex: 0,
+    next_sync_committee_gindex: 0,
+    execution_payload_gindex: 0,
+    execution_payload_state_root_gindex: 0,
+    execution_payload_block_number_gindex: 0,
 };
 
 /// Fork parameters for the beacon chain
@@ -37,6 +38,9 @@ impl ForkParameters {
     }
 
     fn validate(&self) -> Result<(), Error> {
+        if self.forks.is_empty() {
+            return Err(Error::NotSupportedLightClient);
+        }
         if self.forks.windows(2).all(|f| f[0].epoch <= f[1].epoch) {
             Ok(())
         } else {
@@ -75,13 +79,21 @@ impl ForkParameters {
     }
 }
 
+/// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#constants
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ForkSpec {
-    pub finalized_root_depth: u32,
-    pub current_sync_committee_depth: u32,
-    pub next_sync_committee_depth: u32,
-    pub execution_payload_depth: u32,
-    pub execution_payload_tree_depth: u32,
+    /// get_generalized_index(BeaconState, 'finalized_checkpoint', 'root')
+    pub finalized_root_gindex: u32,
+    /// get_generalized_index(BeaconState, 'current_sync_committee')
+    pub current_sync_committee_gindex: u32,
+    /// get_generalized_index(BeaconState, 'next_sync_committee')
+    pub next_sync_committee_gindex: u32,
+    /// get_generalized_index(BeaconBlockBody, 'execution_payload')
+    pub execution_payload_gindex: u32,
+    /// get_generalized_index(ExecutionPayload, 'state_root')
+    pub execution_payload_state_root_gindex: u32,
+    /// get_generalized_index(ExecutionPayload, 'block_number')
+    pub execution_payload_block_number_gindex: u32,
 }
 
 /// Fork parameters for each fork
@@ -128,9 +140,7 @@ mod tests {
         assert_eq!(params.compute_fork_version(0.into()), Version([4, 0, 0, 1]));
 
         let res = ForkParameters::new(Version([0, 0, 0, 1]), vec![]);
-        assert!(res.is_ok());
-        let params = res.unwrap();
-        assert_eq!(params.compute_fork_version(0.into()), Version([0, 0, 0, 1]));
+        assert!(res.is_err());
 
         let res = ForkParameters::new(
             Version([0, 0, 0, 1]),

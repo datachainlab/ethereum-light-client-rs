@@ -2,8 +2,8 @@ use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationCon
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use ethereum_consensus::{
-    beacon::{BeaconBlockHeader, Slot, BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX},
-    merkle::is_valid_merkle_branch,
+    beacon::{BeaconBlockHeader, Slot},
+    merkle::is_valid_normalized_merkle_branch,
     sync_protocol::{SyncAggregate, SyncCommittee},
     types::{H256, U64},
 };
@@ -48,11 +48,10 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
         ctx: &C,
     ) -> Result<(), Error> {
         let spec = ctx.compute_fork_spec(self.finalized_beacon_header().slot);
-        is_valid_merkle_branch(
+        is_valid_normalized_merkle_branch(
             self.finalized_execution_root(),
             &self.finalized_execution_branch(),
-            spec.execution_payload_depth,
-            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
+            spec.execution_payload_gindex,
             self.finalized_beacon_header().body_root,
         )
         .map_err(Error::InvalidFinalizedExecutionPayload)

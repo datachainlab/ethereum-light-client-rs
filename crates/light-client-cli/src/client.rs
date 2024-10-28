@@ -6,13 +6,9 @@ use crate::{
 };
 use core::time::Duration;
 use ethereum_consensus::{
-    beacon::{Root, Slot},
+    beacon::{BlockNumber, Root, Slot},
     compute::compute_sync_committee_period_at_slot,
     context::ChainContext,
-    execution::{
-        BlockNumber, EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
-        EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
-    },
     fork::deneb::{self, LightClientUpdate},
     sync_protocol::SyncCommitteePeriod,
     types::{H256, U64},
@@ -25,6 +21,10 @@ use ethereum_light_client_verifier::{
 };
 use log::*;
 use std::time::SystemTime;
+
+const EXECUTION_PAYLOAD_STATE_ROOT_SUBTREE_INDEX: usize = 2;
+const EXECUTION_PAYLOAD_BLOCK_NUMBER_SUBTREE_INDEX: usize = 6;
+
 type Result<T> = core::result::Result<T, Error>;
 
 type Updates<
@@ -227,11 +227,11 @@ impl<
             let execution_payload_header = update.finalized_header.execution.clone();
             let (_, state_root_branch) = deneb::gen_execution_payload_field_proof(
                 &execution_payload_header,
-                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+                EXECUTION_PAYLOAD_STATE_ROOT_SUBTREE_INDEX,
             )?;
             let (_, block_number_branch) = deneb::gen_execution_payload_field_proof(
                 &execution_payload_header,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+                EXECUTION_PAYLOAD_BLOCK_NUMBER_SUBTREE_INDEX,
             )?;
             ExecutionUpdateInfo {
                 state_root: execution_payload_header.state_root,

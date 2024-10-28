@@ -12,15 +12,8 @@ use ethereum_consensus::compute::{
     compute_sync_committee_period_at_slot, hash_tree_root,
 };
 use ethereum_consensus::context::ChainContext;
-use ethereum_consensus::execution::{
-    EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
-};
-use ethereum_consensus::fork::altair::{
-    CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX, FINALIZED_ROOT_SUBTREE_INDEX,
-    NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
-};
 use ethereum_consensus::fork::ForkSpec;
-use ethereum_consensus::merkle::is_valid_merkle_branch;
+use ethereum_consensus::merkle::is_valid_normalized_merkle_branch;
 use ethereum_consensus::sync_protocol::SyncCommittee;
 use ethereum_consensus::types::H256;
 
@@ -51,11 +44,10 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
             }
         }
         let fork_spec = ctx.compute_fork_spec(bootstrap.beacon_header().slot);
-        is_valid_merkle_branch(
+        is_valid_normalized_merkle_branch(
             hash_tree_root(bootstrap.current_sync_committee().clone())?,
             &bootstrap.current_sync_committee_branch(),
-            fork_spec.current_sync_committee_depth,
-            CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
+            fork_spec.current_sync_committee_gindex,
             bootstrap.beacon_header().state_root,
         )
         .map_err(Error::InvalidCurrentSyncCommitteeMerkleBranch)?;
@@ -111,23 +103,21 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
-        if update_fork_spec.execution_payload_tree_depth == 0 {
+        if update_fork_spec.execution_payload_gindex == 0 {
             return Err(Error::NoExecutionPayloadInBeaconBlock);
         }
-        is_valid_merkle_branch(
+        is_valid_normalized_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
-            update_fork_spec.execution_payload_tree_depth,
-            EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
+            update_fork_spec.execution_payload_state_root_gindex,
             trusted_execution_root,
         )
         .map_err(Error::InvalidExecutionStateRootMerkleBranch)?;
 
-        is_valid_merkle_branch(
+        is_valid_normalized_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
-            update_fork_spec.execution_payload_tree_depth,
-            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
+            update_fork_spec.execution_payload_block_number_gindex,
             trusted_execution_root,
         )
         .map_err(Error::InvalidExecutionBlockNumberMerkleBranch)?;
@@ -342,12 +332,11 @@ pub fn validate_light_client_update<
         consensus_update.is_valid_light_client_finalized_header(ctx)?;
         hash_tree_root(consensus_update.finalized_beacon_header().clone())?
     };
-    is_valid_merkle_branch(
+    is_valid_normalized_merkle_branch(
         finalized_root,
         &consensus_update.finalized_beacon_header_branch(),
         ctx.compute_fork_spec(consensus_update.attested_beacon_header().slot)
-            .finalized_root_depth,
-        FINALIZED_ROOT_SUBTREE_INDEX,
+            .finalized_root_gindex,
         consensus_update.attested_beacon_header().state_root,
     )
     .map_err(Error::InvalidFinalizedBeaconHeaderMerkleBranch)?;
@@ -381,12 +370,11 @@ pub fn validate_light_client_update<
                 ));
             }
         }
-        is_valid_merkle_branch(
+        is_valid_normalized_merkle_branch(
             hash_tree_root(update_next_sync_committee.clone())?,
             &consensus_update.next_sync_committee_branch().unwrap(),
             ctx.compute_fork_spec(consensus_update.attested_beacon_header().slot)
-                .next_sync_committee_depth,
-            NEXT_SYNC_COMMITTEE_SUBTREE_INDEX,
+                .next_sync_committee_gindex,
             consensus_update.attested_beacon_header().state_root,
         )
         .map_err(Error::InvalidNextSyncCommitteeMerkleBranch)?;
