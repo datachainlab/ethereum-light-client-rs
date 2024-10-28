@@ -366,7 +366,7 @@ pub fn gen_execution_payload_field_proof<
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{
         gen_execution_payload_field_proof, gen_execution_payload_proof, BeaconBlockHeader,
     };

@@ -66,7 +66,7 @@ pub fn compute_domain<C: ChainContext>(
     genesis_validators_root: Option<Root>,
 ) -> Result<Domain, Error> {
     let fork_data_root = compute_fork_data_root(
-        fork_version.unwrap_or(ctx.fork_parameters().genesis_version.clone()),
+        fork_version.unwrap_or(ctx.fork_parameters().genesis_version().clone()),
         genesis_validators_root.unwrap_or_default(),
     )?;
     let mut domain: [u8; 32] = Default::default();
@@ -108,7 +108,7 @@ mod tests {
     fn get_minimal_config() -> Config {
         Config {
             preset: preset::minimal::PRESET,
-            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]),
+            fork_parameters: ForkParameters::new(Version([0, 0, 0, 1]), vec![]).unwrap(),
             min_genesis_time: U64(1578009600),
         }
     }

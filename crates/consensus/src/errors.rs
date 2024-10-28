@@ -1,4 +1,10 @@
-use crate::{beacon::Root, bls::PublicKey, fork::ForkParameters, internal_prelude::*, types::H256};
+use crate::{
+    beacon::{Root, Version},
+    bls::PublicKey,
+    fork::ForkParameters,
+    internal_prelude::*,
+    types::{H256, U64},
+};
 use displaydoc::Display;
 
 #[derive(Debug, Display)]
@@ -21,6 +27,10 @@ pub enum Error {
     InvalidAddressLength(usize, usize),
     /// invalid fork parameters order: `{0:?}`
     InvalidForkParamersOrder(ForkParameters),
+    /// invalid fork version: `epoch={0:?} fork={1:?} index={2}`
+    UnknownFork(U64, U64, usize),
+    /// the fork version does not support execution payload: `{0:?}`
+    NotSupportedExecutionPayload(Version),
     /// other error: `{description}`
     Other { description: String },
 }

@@ -440,7 +440,7 @@ pub fn gen_execution_payload_field_proof<
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
     use crate::merkle::is_valid_merkle_branch;

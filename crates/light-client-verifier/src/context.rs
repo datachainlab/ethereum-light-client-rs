@@ -1,9 +1,10 @@
 use ethereum_consensus::{
     beacon::{Epoch, Root, Slot},
-    compute::compute_slot_at_timestamp,
+    compute::{compute_epoch_at_slot, compute_slot_at_timestamp},
     config::Config,
     context::ChainContext,
-    fork::ForkParameters,
+    errors::Error,
+    fork::{Fork, ForkParameters},
     types::U64,
 };
 #[derive(Clone, Default, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -34,6 +35,15 @@ pub trait ConsensusVerificationContext {
 
     /// The threshold of sync committee participation required for valid update
     fn signature_threshold(&self) -> Fraction;
+}
+
+pub trait ChainConsensusVerificationContext:
+    ChainContext + ConsensusVerificationContext + Sized
+{
+    fn compute_fork(&self, slot: U64) -> Result<Fork, Error> {
+        self.fork_parameters()
+            .compute_fork(compute_epoch_at_slot(self, slot))
+    }
 }
 
 pub struct LightClientContext {
@@ -139,3 +149,5 @@ impl ChainContext for LightClientContext {
         self.epochs_per_sync_committee_period
     }
 }
+
+impl ChainConsensusVerificationContext for LightClientContext {}
