@@ -15,7 +15,7 @@ use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::execution::{
     EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
 };
-use ethereum_consensus::fork::Fork;
+use ethereum_consensus::fork::ForkSpec;
 use ethereum_consensus::merkle::is_valid_merkle_branch;
 use ethereum_consensus::sync_protocol::{
     SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX,
@@ -75,7 +75,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         self.ensure_relevant_update(ctx, store, consensus_update)?;
         self.validate_consensus_update(ctx, store, consensus_update)?;
         self.validate_execution_update(
-            ctx.compute_fork(consensus_update.finalized_beacon_header().slot)?,
+            ctx.compute_fork_spec(consensus_update.finalized_beacon_header().slot),
             consensus_update.finalized_execution_root(),
             execution_update,
         )?;
@@ -102,14 +102,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
     /// validate an execution update with trusted/verified beacon block body
     pub fn validate_execution_update<EU: ExecutionUpdate>(
         &self,
-        update_fork: Fork,
+        update_fork_spec: ForkSpec,
         trusted_execution_root: Root,
         update: &EU,
     ) -> Result<(), Error> {
         is_valid_merkle_branch(
             hash_tree_root(update.state_root()).unwrap().0.into(),
             &update.state_root_branch(),
-            update_fork.execution_payload_tree_depth()? as u32,
+            update_fork_spec.execution_payload_tree_depth,
             EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
             trusted_execution_root,
         )
@@ -118,7 +118,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         is_valid_merkle_branch(
             hash_tree_root(update.block_number()).unwrap().0.into(),
             &update.block_number_branch(),
-            update_fork.execution_payload_tree_depth()? as u32,
+            update_fork_spec.execution_payload_tree_depth,
             EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
             trusted_execution_root,
         )
@@ -259,7 +259,7 @@ pub fn verify_sync_committee_attestation<
         .collect();
 
     let fork_version_slot = consensus_update.signature_slot().max(1.into()) - 1;
-    let fork_version = compute_fork_version(ctx, compute_epoch_at_slot(ctx, fork_version_slot))?;
+    let fork_version = compute_fork_version(ctx, compute_epoch_at_slot(ctx, fork_version_slot));
     let domain = compute_domain(
         ctx,
         DOMAIN_SYNC_COMMITTEE,
@@ -414,7 +414,7 @@ mod tests_bellatrix {
         beacon::Version,
         bls::aggreate_public_key,
         config::{minimal, Config},
-        fork::{ForkParameter, ForkParameters},
+        fork::{bellatrix::BELLATRIX_FORK_SPEC, ForkParameter, ForkParameters, ALTAIR_FORK_SPEC},
         preset,
         types::U64,
     };
@@ -536,8 +536,8 @@ mod tests_bellatrix {
             fork_parameters: ForkParameters::new(
                 Version([0, 0, 0, 1]),
                 vec![
-                    ForkParameter::new(Version([1, 0, 0, 1]), U64(0)),
-                    ForkParameter::new(Version([2, 0, 0, 1]), U64(0)),
+                    ForkParameter::new(Version([1, 0, 0, 1]), U64(0), ALTAIR_FORK_SPEC),
+                    ForkParameter::new(Version([2, 0, 0, 1]), U64(0), BELLATRIX_FORK_SPEC),
                 ],
             )
             .unwrap(),

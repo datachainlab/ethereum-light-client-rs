@@ -1,7 +1,10 @@
 use super::Config;
 use crate::{
     beacon::Version,
-    fork::{ForkParameter, ForkParameters},
+    fork::{
+        bellatrix::BELLATRIX_FORK_SPEC, capella::CAPELLA_FORK_SPEC, deneb::DENEB_FORK_SPEC,
+        ForkParameter, ForkParameters, ALTAIR_FORK_SPEC,
+    },
     internal_prelude::*,
     preset,
     types::U64,
@@ -13,11 +16,11 @@ pub fn get_config() -> Config {
         fork_parameters: ForkParameters::new(
             Version([144, 0, 0, 105]),
             vec![
-                ForkParameter::new(Version([144, 0, 0, 112]), U64(50)),
-                ForkParameter::new(Version([144, 0, 0, 113]), U64(100)),
-                ForkParameter::new(Version([144, 0, 0, 114]), U64(56832)),
-                ForkParameter::new(Version([144, 0, 0, 115]), U64(132608)),
-                ForkParameter::new(Version([144, 0, 0, 116]), U64(u64::MAX)),
+                ForkParameter::new(Version([144, 0, 0, 112]), U64(50), ALTAIR_FORK_SPEC),
+                ForkParameter::new(Version([144, 0, 0, 113]), U64(100), BELLATRIX_FORK_SPEC),
+                ForkParameter::new(Version([144, 0, 0, 114]), U64(56832), CAPELLA_FORK_SPEC),
+                ForkParameter::new(Version([144, 0, 0, 115]), U64(132608), DENEB_FORK_SPEC),
+                ForkParameter::new(Version([144, 0, 0, 116]), U64(u64::MAX), Default::default()),
             ],
         )
         .unwrap(),

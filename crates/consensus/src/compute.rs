@@ -43,8 +43,8 @@ pub fn compute_sync_committee_period<C: ChainContext>(
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/fork.md#compute_fork_version
-pub fn compute_fork_version<C: ChainContext>(ctx: &C, epoch: Epoch) -> Result<Version, Error> {
-    Ok(ctx.fork_parameters().compute_fork_version(epoch)?.clone())
+pub fn compute_fork_version<C: ChainContext>(ctx: &C, epoch: Epoch) -> Version {
+    ctx.fork_parameters().compute_fork_version(epoch)
 }
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_fork_data_root

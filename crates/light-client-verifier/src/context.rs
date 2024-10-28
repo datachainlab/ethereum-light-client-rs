@@ -3,8 +3,7 @@ use ethereum_consensus::{
     compute::{compute_epoch_at_slot, compute_slot_at_timestamp},
     config::Config,
     context::ChainContext,
-    errors::Error,
-    fork::{Fork, ForkParameters},
+    fork::{ForkParameters, ForkSpec},
     types::U64,
 };
 #[derive(Clone, Default, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -40,9 +39,9 @@ pub trait ConsensusVerificationContext {
 pub trait ChainConsensusVerificationContext:
     ChainContext + ConsensusVerificationContext + Sized
 {
-    fn compute_fork(&self, slot: U64) -> Result<Fork, Error> {
+    fn compute_fork_spec(&self, slot: U64) -> ForkSpec {
         self.fork_parameters()
-            .compute_fork(compute_epoch_at_slot(self, slot))
+            .compute_fork_spec(compute_epoch_at_slot(self, slot))
     }
 }
 

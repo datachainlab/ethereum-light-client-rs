@@ -1,3 +1,4 @@
+use super::ForkSpec;
 pub use crate::fork::bellatrix::EXECUTION_PAYLOAD_TREE_DEPTH;
 use crate::{
     beacon::{
@@ -19,6 +20,10 @@ use crate::{
 };
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
+
+pub const CAPELLA_FORK_SPEC: ForkSpec = ForkSpec {
+    execution_payload_tree_depth: EXECUTION_PAYLOAD_TREE_DEPTH,
+};
 
 /// Beacon Block
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconblock
@@ -374,7 +379,7 @@ pub fn gen_execution_payload_field_proof<
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     leaf_index: usize,
-) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH]), Error> {
+) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH as usize]), Error> {
     let tree = MerkleTree::from_leaves(
         ([
             payload.parent_hash.0,
@@ -396,7 +401,7 @@ pub fn gen_execution_payload_field_proof<
         ] as [_; 16])
             .as_ref(),
     );
-    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH];
+    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH as usize];
     branch.copy_from_slice(
         tree.proof(&[leaf_index])
             .proof_hashes()
@@ -468,7 +473,7 @@ mod tests {
             assert!(is_valid_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_TREE_DEPTH,
                 EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
                 root,
             )
@@ -488,7 +493,7 @@ mod tests {
                     .0
                     .into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
+                EXECUTION_PAYLOAD_TREE_DEPTH,
                 EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
                 root,
             )
