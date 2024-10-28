@@ -163,8 +163,8 @@ mod tests {
         let res = ForkParameters::new(
             Version([0, 0, 0, 1]),
             vec![
-                ForkParameter::new(Version([2, 0, 0, 1]), U64(1), ALTAIR_FORK_SPEC),
-                ForkParameter::new(Version([1, 0, 0, 1]), U64(0), GENESIS_SPEC),
+                ForkParameter::new(Version([2, 0, 0, 1]), U64(1), BELLATRIX_FORK_SPEC),
+                ForkParameter::new(Version([1, 0, 0, 1]), U64(0), ALTAIR_FORK_SPEC),
             ],
         );
         assert!(res.is_err());
