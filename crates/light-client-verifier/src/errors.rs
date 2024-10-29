@@ -33,6 +33,10 @@ pub enum Error {
     LessThanMinimalParticipants(usize, usize),
     /// insufficient participants: `actual={0} total={1}`
     InsufficientParticipants(u64, u64),
+    /// execution payload's state root branch is empty
+    EmptyExecutionPayloadStateRootBranch,
+    /// execution payload's block number branch is empty
+    EmptyExecutionPayloadBlockNumberBranch,
     /// invalid bls signatures
     InvalidBLSSignatures,
     /// finalized header not found

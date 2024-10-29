@@ -102,8 +102,7 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
     }
 }
 
-// TODO multiproof support
-/// ExecutionUpdate is an update info of the execution layer
+/// ExecutionUpdate is an update info of the execution payload
 pub trait ExecutionUpdate: core::fmt::Debug + Clone + PartialEq + Eq {
     fn state_root(&self) -> H256;
     fn state_root_branch(&self) -> Vec<H256>;
@@ -111,6 +110,12 @@ pub trait ExecutionUpdate: core::fmt::Debug + Clone + PartialEq + Eq {
     fn block_number_branch(&self) -> Vec<H256>;
 
     fn validate_basic(&self) -> Result<(), Error> {
+        if self.state_root_branch().is_empty() {
+            return Err(Error::EmptyExecutionPayloadStateRootBranch);
+        }
+        if self.block_number_branch().is_empty() {
+            return Err(Error::EmptyExecutionPayloadBlockNumberBranch);
+        }
         Ok(())
     }
 }
