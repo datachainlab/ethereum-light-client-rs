@@ -33,6 +33,10 @@ pub enum Error {
     LessThanMinimalParticipants(usize, usize),
     /// insufficient participants: `actual={0} total={1}`
     InsufficientParticipants(u64, u64),
+    /// execution payload's state root branch is empty
+    EmptyExecutionPayloadStateRootBranch,
+    /// execution payload's block number branch is empty
+    EmptyExecutionPayloadBlockNumberBranch,
     /// invalid bls signatures
     InvalidBLSSignatures,
     /// finalized header not found
@@ -75,6 +79,8 @@ pub enum Error {
     InvalidCurrentSyncCommitteeMerkleBranch(MerkleError),
     /// invalid merkle branch of execution state root: `error={0}`
     InvalidExecutionStateRootMerkleBranch(MerkleError),
+    /// the current fork does not contain the execution payload in the beacon block
+    NoExecutionPayloadInBeaconBlock,
     /// invalid merkle branch of execution block number: `error={0}`
     InvalidExecutionBlockNumberMerkleBranch(MerkleError),
     /// inconsistent next sync committee: `store:{0:?}` != `update:{1:?}`

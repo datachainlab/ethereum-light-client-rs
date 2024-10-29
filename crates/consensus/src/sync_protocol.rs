@@ -10,23 +10,6 @@ use ssz_rs_derive::SimpleSerialize;
 
 pub type SyncCommitteePeriod = U64;
 
-/// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/light-client/sync-protocol.md#constants
-/// get_generalized_index(BeaconState, 'finalized_checkpoint', 'root')
-pub const FINALIZED_ROOT_INDEX: u64 = 105;
-pub const FINALIZED_ROOT_SUBTREE_INDEX: u64 = 41;
-pub const FINALIZED_ROOT_DEPTH: usize = 6;
-/// get_generalized_index(BeaconState, 'current_sync_committee')
-pub const CURRENT_SYNC_COMMITTEE_INDEX: u64 = 54;
-pub const CURRENT_SYNC_COMMITTEE_SUBTREE_INDEX: u64 = 22;
-pub const CURRENT_SYNC_COMMITTEE_DEPTH: usize = 5;
-/// get_generalized_index(BeaconState, 'next_sync_committee')
-pub const NEXT_SYNC_COMMITTEE_INDEX: u64 = 55;
-pub const NEXT_SYNC_COMMITTEE_SUBTREE_INDEX: u64 = 23;
-pub const NEXT_SYNC_COMMITTEE_DEPTH: usize = 5;
-/// get_generalized_index(BeaconBlockBody, 'execution_payload')
-pub const EXECUTION_PAYLOAD_INDEX: u64 = 25;
-pub const EXECUTION_PAYLOAD_DEPTH: usize = 4;
-
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/beacon-chain.md#synccommittee
 #[derive(
     Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,

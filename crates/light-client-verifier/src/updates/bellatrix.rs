@@ -3,10 +3,7 @@ use crate::internal_prelude::*;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     fork::bellatrix::LightClientUpdate,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
-        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::{H256, U64},
 };
 
@@ -25,8 +22,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>
     fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
         &self.0.current_sync_committee
     }
-    fn current_sync_committee_branch(&self) -> [H256; CURRENT_SYNC_COMMITTEE_DEPTH] {
-        self.0.current_sync_committee_branch
+    fn current_sync_committee_branch(&self) -> Vec<H256> {
+        self.0.current_sync_committee_branch.to_vec()
     }
 }
 
@@ -34,7 +31,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> LightClientBootstrap<SYNC_COMMITTEE_SIZE>
 pub struct ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> {
     pub light_client_update: LightClientUpdate<SYNC_COMMITTEE_SIZE>,
     pub finalized_execution_root: H256,
-    pub finalized_execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
+    pub finalized_execution_branch: Vec<H256>,
 }
 
 impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
@@ -49,23 +46,23 @@ impl<const SYNC_COMMITTEE_SIZE: usize> ConsensusUpdate<SYNC_COMMITTEE_SIZE>
             .as_ref()
             .map(|c| &c.0)
     }
-    fn next_sync_committee_branch(&self) -> Option<[H256; NEXT_SYNC_COMMITTEE_DEPTH]> {
+    fn next_sync_committee_branch(&self) -> Option<Vec<H256>> {
         self.light_client_update
             .next_sync_committee
             .as_ref()
-            .map(|c| c.1)
+            .map(|c| c.1.to_vec())
     }
     fn finalized_beacon_header(&self) -> &BeaconBlockHeader {
         &self.light_client_update.finalized_header.0
     }
-    fn finalized_beacon_header_branch(&self) -> [H256; FINALIZED_ROOT_DEPTH] {
-        self.light_client_update.finalized_header.1
+    fn finalized_beacon_header_branch(&self) -> Vec<H256> {
+        self.light_client_update.finalized_header.1.to_vec()
     }
     fn finalized_execution_root(&self) -> H256 {
         self.finalized_execution_root
     }
-    fn finalized_execution_branch(&self) -> [H256; EXECUTION_PAYLOAD_DEPTH] {
-        self.finalized_execution_branch
+    fn finalized_execution_branch(&self) -> Vec<H256> {
+        self.finalized_execution_branch.to_vec()
     }
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE> {
         &self.light_client_update.sync_aggregate

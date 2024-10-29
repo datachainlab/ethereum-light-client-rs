@@ -1,25 +1,26 @@
+use super::{capella, ForkSpec};
 use crate::{
     beacon::{
-        Attestation, AttesterSlashing, BeaconBlockHeader, Deposit, Eth1Data, ProposerSlashing,
-        Root, SignedBlsToExecutionChange, SignedVoluntaryExit, Slot, ValidatorIndex, Withdrawal,
+        Attestation, AttesterSlashing, BeaconBlockHeader, BlockNumber, Deposit, Eth1Data,
+        ProposerSlashing, Root, SignedBlsToExecutionChange, SignedVoluntaryExit, Slot,
+        ValidatorIndex, Withdrawal,
     },
     bls::Signature,
     compute::hash_tree_root,
     errors::Error,
-    execution::BlockNumber,
     internal_prelude::*,
     merkle::MerkleTree,
-    sync_protocol::{
-        SyncAggregate, SyncCommittee, CURRENT_SYNC_COMMITTEE_DEPTH, EXECUTION_PAYLOAD_DEPTH,
-        FINALIZED_ROOT_DEPTH, NEXT_SYNC_COMMITTEE_DEPTH,
-    },
+    sync_protocol::{SyncAggregate, SyncCommittee},
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
 use ssz_rs::{Deserialize, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
-/// Execution payload tree depth
-pub const EXECUTION_PAYLOAD_TREE_DEPTH: usize = 5;
+pub const DENEB_FORK_SPEC: ForkSpec = ForkSpec {
+    execution_payload_state_root_gindex: 34,
+    execution_payload_block_number_gindex: 38,
+    ..capella::CAPELLA_FORK_SPEC
+};
 
 /// Beacon Block
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#beaconblock
@@ -280,7 +281,7 @@ pub struct LightClientBootstrap<
     pub header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Current sync committee corresponding to `beacon_header.state_root`
     pub current_sync_committee: SyncCommittee<SYNC_COMMITTEE_SIZE>,
-    pub current_sync_committee_branch: [H256; CURRENT_SYNC_COMMITTEE_DEPTH],
+    pub current_sync_committee_branch: Vec<H256>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -292,13 +293,10 @@ pub struct LightClientUpdate<
     /// Header attested to by the sync committee
     pub attested_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     /// Next sync committee corresponding to `attested_header.state_root`
-    pub next_sync_committee: Option<(
-        SyncCommittee<SYNC_COMMITTEE_SIZE>,
-        [H256; NEXT_SYNC_COMMITTEE_DEPTH],
-    )>,
+    pub next_sync_committee: Option<(SyncCommittee<SYNC_COMMITTEE_SIZE>, Vec<H256>)>,
     /// Finalized header corresponding to `attested_header.state_root`
     pub finalized_header: LightClientHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub finality_branch: [H256; FINALIZED_ROOT_DEPTH],
+    pub finality_branch: Vec<H256>,
     /// Sync committee aggregate signature
     pub sync_aggregate: SyncAggregate<SYNC_COMMITTEE_SIZE>,
     /// Slot at which the aggregate signature was created (untrusted)
@@ -310,77 +308,7 @@ pub struct LightClientHeader<const BYTES_PER_LOGS_BLOOM: usize, const MAX_EXTRA_
     /// Header matching the requested beacon block root
     pub beacon: BeaconBlockHeader,
     pub execution: ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    pub execution_branch: [H256; EXECUTION_PAYLOAD_DEPTH],
-}
-
-// TODO each fork's prover implementation is redundant
-
-pub fn gen_execution_payload_proof<
-    const MAX_PROPOSER_SLASHINGS: usize,
-    const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    const MAX_ATTESTER_SLASHINGS: usize,
-    const MAX_ATTESTATIONS: usize,
-    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    const MAX_DEPOSITS: usize,
-    const MAX_VOLUNTARY_EXITS: usize,
-    const BYTES_PER_LOGS_BLOOM: usize,
-    const MAX_EXTRA_DATA_BYTES: usize,
-    const MAX_BYTES_PER_TRANSACTION: usize,
-    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
-    const MAX_BLS_TO_EXECUTION_CHANGES: usize,
-    const SYNC_COMMITTEE_SIZE: usize,
-    const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
->(
-    body: &BeaconBlockBody<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        MAX_WITHDRAWALS_PER_PAYLOAD,
-        MAX_BLS_TO_EXECUTION_CHANGES,
-        SYNC_COMMITTEE_SIZE,
-        MAX_BLOB_COMMITMENTS_PER_BLOCK,
-    >,
-) -> Result<(Root, Vec<H256>), Error> {
-    let tree = MerkleTree::from_leaves(
-        ([
-            hash_tree_root(body.randao_reveal.clone()).unwrap().0,
-            hash_tree_root(body.eth1_data.clone()).unwrap().0,
-            body.graffiti.0,
-            hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attester_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attestations.clone()).unwrap().0,
-            hash_tree_root(body.deposits.clone()).unwrap().0,
-            hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
-            hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
-            hash_tree_root(body.execution_payload.clone()).unwrap().0,
-            hash_tree_root(body.bls_to_execution_changes.clone())
-                .unwrap()
-                .0,
-            hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ] as [_; 16])
-            .as_ref(),
-    );
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(&[9])
-            .proof_hashes()
-            .iter()
-            .map(|h| H256::from_slice(h))
-            .collect(),
-    ))
+    pub execution_branch: Vec<H256>,
 }
 
 pub fn gen_execution_payload_field_proof<
@@ -389,7 +317,7 @@ pub fn gen_execution_payload_field_proof<
 >(
     payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
     leaf_index: usize,
-) -> Result<(Root, [H256; EXECUTION_PAYLOAD_TREE_DEPTH]), Error> {
+) -> Result<(Root, Vec<H256>), Error> {
     let tree = MerkleTree::from_leaves(
         ([
             payload.parent_hash.0,
@@ -427,33 +355,26 @@ pub fn gen_execution_payload_field_proof<
         ] as [_; 32])
             .as_ref(),
     );
-    let mut branch = [Default::default(); EXECUTION_PAYLOAD_TREE_DEPTH];
-    branch.copy_from_slice(
+    Ok((
+        H256(tree.root().unwrap()),
         tree.proof(&[leaf_index])
             .proof_hashes()
             .iter()
             .map(|h| H256::from_slice(h))
-            .collect::<Vec<H256>>()
-            .as_slice(),
-    );
-    Ok((H256(tree.root().unwrap()), branch))
+            .collect::<Vec<H256>>(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::beacon::BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX;
-    use crate::merkle::is_valid_merkle_branch;
-    use crate::sync_protocol::EXECUTION_PAYLOAD_DEPTH;
+    use crate::merkle::{get_subtree_index, is_valid_normalized_merkle_branch};
     use crate::{compute::hash_tree_root, types::H256};
     use ssz_rs::Merkleized;
     use std::fs;
 
     #[test]
     fn beacon_block_serialization() {
-        use crate::execution::{
-            EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX, EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
-        };
         let mut header: BeaconBlockHeader = serde_json::from_str(
             &fs::read_to_string("./data/mainnet_header_10265184.json").unwrap(),
         )
@@ -479,11 +400,10 @@ mod tests {
         let payload_root = block.body.execution_payload.hash_tree_root().unwrap();
         let payload_header = block.body.execution_payload.clone().to_header();
 
-        assert!(is_valid_merkle_branch(
+        assert!(is_valid_normalized_merkle_branch(
             H256::from_slice(payload_root.as_bytes()),
             &payload_proof,
-            EXECUTION_PAYLOAD_DEPTH as u32,
-            BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX as u64,
+            DENEB_FORK_SPEC.execution_payload_gindex,
             block_root
         )
         .is_ok());
@@ -491,16 +411,14 @@ mod tests {
         {
             let (root, proof) = gen_execution_payload_field_proof(
                 &payload_header,
-                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX,
+                get_subtree_index(DENEB_FORK_SPEC.execution_payload_state_root_gindex) as usize,
             )
             .unwrap();
             assert_eq!(root.as_bytes(), payload_root.as_bytes());
-
-            assert!(is_valid_merkle_branch(
+            assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
-                EXECUTION_PAYLOAD_STATE_ROOT_LEAF_INDEX as u64,
+                DENEB_FORK_SPEC.execution_payload_state_root_gindex,
                 root,
             )
             .is_ok());
@@ -508,22 +426,88 @@ mod tests {
         {
             let (root, proof) = gen_execution_payload_field_proof(
                 &payload_header,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX,
+                get_subtree_index(DENEB_FORK_SPEC.execution_payload_block_number_gindex) as usize,
             )
             .unwrap();
             assert_eq!(root.as_bytes(), payload_root.as_bytes());
-
-            assert!(is_valid_merkle_branch(
+            assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.block_number)
                     .unwrap()
                     .0
                     .into(),
                 &proof,
-                EXECUTION_PAYLOAD_TREE_DEPTH as u32,
-                EXECUTION_PAYLOAD_BLOCK_NUMBER_LEAF_INDEX as u64,
+                DENEB_FORK_SPEC.execution_payload_block_number_gindex,
                 root,
             )
             .is_ok());
         }
+    }
+
+    fn gen_execution_payload_proof<
+        const MAX_PROPOSER_SLASHINGS: usize,
+        const MAX_VALIDATORS_PER_COMMITTEE: usize,
+        const MAX_ATTESTER_SLASHINGS: usize,
+        const MAX_ATTESTATIONS: usize,
+        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+        const MAX_DEPOSITS: usize,
+        const MAX_VOLUNTARY_EXITS: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+        const MAX_BYTES_PER_TRANSACTION: usize,
+        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+        const MAX_BLS_TO_EXECUTION_CHANGES: usize,
+        const SYNC_COMMITTEE_SIZE: usize,
+        const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
+    >(
+        body: &BeaconBlockBody<
+            MAX_PROPOSER_SLASHINGS,
+            MAX_VALIDATORS_PER_COMMITTEE,
+            MAX_ATTESTER_SLASHINGS,
+            MAX_ATTESTATIONS,
+            DEPOSIT_CONTRACT_TREE_DEPTH,
+            MAX_DEPOSITS,
+            MAX_VOLUNTARY_EXITS,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+            MAX_BYTES_PER_TRANSACTION,
+            MAX_TRANSACTIONS_PER_PAYLOAD,
+            MAX_WITHDRAWALS_PER_PAYLOAD,
+            MAX_BLS_TO_EXECUTION_CHANGES,
+            SYNC_COMMITTEE_SIZE,
+            MAX_BLOB_COMMITMENTS_PER_BLOCK,
+        >,
+    ) -> Result<(Root, Vec<H256>), Error> {
+        let tree = MerkleTree::from_leaves(
+            ([
+                hash_tree_root(body.randao_reveal.clone()).unwrap().0,
+                hash_tree_root(body.eth1_data.clone()).unwrap().0,
+                body.graffiti.0,
+                hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attester_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attestations.clone()).unwrap().0,
+                hash_tree_root(body.deposits.clone()).unwrap().0,
+                hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
+                hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
+                hash_tree_root(body.execution_payload.clone()).unwrap().0,
+                hash_tree_root(body.bls_to_execution_changes.clone())
+                    .unwrap()
+                    .0,
+                hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ] as [_; 16])
+                .as_ref(),
+        );
+        Ok((
+            H256(tree.root().unwrap()),
+            tree.proof(&[get_subtree_index(DENEB_FORK_SPEC.execution_payload_gindex) as usize])
+                .proof_hashes()
+                .iter()
+                .map(|h| H256::from_slice(h))
+                .collect(),
+        ))
     }
 }

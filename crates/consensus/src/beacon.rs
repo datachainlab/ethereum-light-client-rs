@@ -15,14 +15,13 @@ pub type Gwei = U64;
 pub type Root = H256;
 /// https://github.com/ethereum/consensus-specs/blob/dev/ssz/merkle-proofs.md#generalized-merkle-tree-index
 pub type GeneralizedIndex = u64;
+pub type BlockNumber = U64;
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/beacon-chain.md#domain-types
 pub const DOMAIN_SYNC_COMMITTEE: DomainType = DomainType([7, 0, 0, 0]);
 
 pub const PUBLIC_KEY_BYTES_LEN: usize = 48;
 pub const SIGNATURE_BYTES_LEN: usize = 96;
-
-pub const BLOCK_BODY_EXECUTION_PAYLOAD_LEAF_INDEX: usize = 9;
 
 #[derive(
     Clone, Debug, PartialEq, Eq, Default, SimpleSerialize, serde::Serialize, serde::Deserialize,
