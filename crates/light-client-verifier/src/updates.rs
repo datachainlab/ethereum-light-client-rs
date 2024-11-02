@@ -119,3 +119,14 @@ pub trait ExecutionUpdate: core::fmt::Debug + Clone + PartialEq + Eq {
         Ok(())
     }
 }
+
+pub type LightClientBootstrapInfo<const SYNC_COMMITTEE_SIZE: usize> =
+    bellatrix::LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE>;
+
+pub type LightClientUpdate<const SYNC_COMMITTEE_SIZE: usize> =
+    ethereum_consensus::fork::bellatrix::LightClientUpdate<SYNC_COMMITTEE_SIZE>;
+
+pub type ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> =
+    bellatrix::ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>;
+
+pub type ExecutionUpdateInfo = bellatrix::ExecutionUpdateInfo;

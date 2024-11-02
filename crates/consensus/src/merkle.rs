@@ -62,6 +62,7 @@ pub fn is_valid_merkle_branch(
             branch.to_vec(),
             subtree_index,
             root,
+            value,
         ))
     }
 }

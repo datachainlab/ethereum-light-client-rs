@@ -39,8 +39,8 @@ pub enum Error {
 
 #[derive(Debug, Display)]
 pub enum MerkleError {
-    /// invalid merkle branch error: leaf={0:?} branch={1:?} subtree_index={2:?} root={3:?}
-    InvalidMerkleBranch(H256, Vec<H256>, u32, Root),
+    /// invalid merkle branch error: leaf={0:?} branch={1:?} subtree_index={2:?} expected={3:?} actual={4:?}
+    InvalidMerkleBranch(H256, Vec<H256>, u32, Root, Root),
     /// too long merkle branch error: depth={0:?} leaf={1:?} branch={2:?} subtree_index={3:?} root={4:?}
     TooLongMerkleBranchLength(u32, H256, Vec<H256>, u32, Root),
     /// invalid merkle branch length error: depth={0:?} leaf={1:?} branch={2:?} subtree_index={3:?} root={4:?}
