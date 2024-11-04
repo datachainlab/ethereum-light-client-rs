@@ -438,12 +438,6 @@ mod tests {
             );
             assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
 
-            let mut store = MockStore::new(
-                bootstrap.beacon_header().clone(),
-                bootstrap.current_sync_committee().clone(),
-                execution_payload_state_root,
-            );
-
             let updates = [
                 "light_client_update_period_5.json",
                 "light_client_update_period_6.json",
@@ -456,6 +450,11 @@ mod tests {
                 "finality_update_period_9.json",
             ];
 
+            let mut store = MockStore::new(
+                bootstrap.beacon_header().clone(),
+                bootstrap.current_sync_committee().clone(),
+                execution_payload_state_root,
+            );
             for update in updates.into_iter() {
                 let (consensus_update, execution_update) =
                     get_updates(format!("{}/{}", TEST_DATA_DIR, update));
@@ -463,7 +462,9 @@ mod tests {
                     .validate_updates(&ctx, &store, &consensus_update, &execution_update)
                     .is_ok());
                 let res = store.apply_light_client_update(&ctx, &consensus_update);
-                assert!(res.is_ok() && res.unwrap());
+                assert!(res.is_ok(), "{:?}", res);
+                assert!(res.as_ref().unwrap().is_some());
+                store = res.unwrap().unwrap();
             }
         }
 
@@ -510,7 +511,7 @@ mod tests {
 
         use crate::{
             context::{Fraction, LightClientContext},
-            misbehaviour::NextSyncCommitteeMisbehaviour,
+            misbehaviour::{FinalizedHeaderMisbehaviour, NextSyncCommitteeMisbehaviour},
             mock::MockStore,
         };
         use ethereum_consensus::{config, types::U64};
@@ -523,7 +524,6 @@ mod tests {
         #[test]
         fn test_lc() {
             let scm = MockSyncCommitteeManager::<32>::new(1, 4);
-            let current_sync_committee = scm.get_committee(1);
             let ctx = LightClientContext::new_with_config(
                 config::minimal::get_config(),
                 Default::default(),
@@ -535,48 +535,168 @@ mod tests {
                     .as_secs()
                     .into(),
             );
-            let start_slot =
-                U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+            let period_1 = U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
 
             let initial_header = BeaconBlockHeader {
-                slot: start_slot,
+                slot: period_1,
                 ..Default::default()
             };
+            let current_sync_committee = scm.get_committee(1);
             let store = MockStore::new(
                 initial_header,
                 current_sync_committee.to_committee(),
                 Default::default(),
             );
-
+            let base_signature_slot = period_1 + 11;
+            let base_attested_slot = base_signature_slot - 1;
+            let base_finalized_epoch = base_attested_slot / ctx.slots_per_epoch();
             let dummy_execution_state_root = [1u8; 32].into();
             let dummy_execution_block_number = 1;
-            let update_1 = gen_light_client_update::<32, _>(
-                &ctx,
-                start_slot + 11,
-                start_slot + 10,
-                U64(1) * ctx.slots_per_epoch(),
-                dummy_execution_state_root,
-                dummy_execution_block_number.into(),
-                &scm,
-            );
-            assert!(SyncProtocolVerifier::default()
-                .validate_consensus_update(&ctx, &store, &update_1)
-                .is_ok());
 
-            let update_2_insufficient_attestations = gen_light_client_update_with_params(
-                &ctx,
-                start_slot + 11,
-                start_slot + 10,
-                U64(1) * ctx.slots_per_epoch(),
-                dummy_execution_state_root,
-                dummy_execution_block_number.into(),
-                current_sync_committee,
-                scm.get_committee(3),
-                21,
-            );
-            assert!(SyncProtocolVerifier::default()
-                .validate_consensus_update(&ctx, &store, &update_2_insufficient_attestations)
-                .is_err());
+            {
+                let update_valid = gen_light_client_update::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_valid,
+                );
+                assert!(res.is_ok(), "{:?}", res);
+            }
+            {
+                let update_insufficient_attestations = gen_light_client_update_with_params(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(3),
+                    21,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_insufficient_attestations,
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let update_zero_attestations = gen_light_client_update_with_params(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(3),
+                    0,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_zero_attestations,
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                //
+                //                                    |
+                //    +-----------+     +----------+  |  +-----------+
+                //    | finalized | <-- | attested | <-- | signature |
+                //    +-----------+     +----------+  |  +-----------+
+                //                                    |
+                //                                    |
+                //                               sync committee
+                //                               period boundary
+                //
+                let next_period_signature_slot = base_signature_slot
+                    + ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+                let update_unknown_next_committee = gen_light_client_update::<32, _>(
+                    &ctx,
+                    next_period_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_unknown_next_committee,
+                );
+                assert!(res.is_err(), "{:?}", res);
+
+                let store = MockStore {
+                    next_sync_committee: Some(scm.get_committee(2).to_committee()),
+                    ..store.clone()
+                };
+                let update_valid = gen_light_client_update::<32, _>(
+                    &ctx,
+                    next_period_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_valid,
+                );
+                assert!(res.is_ok(), "{:?}", res);
+            }
+            {
+                //
+                //                   |
+                //    +-----------+  |  +----------+     +-----------+
+                //    | finalized | <-- | attested | <-- | signature |
+                //    +-----------+  |  +----------+     +-----------+
+                //                   |
+                //                   |
+                //              sync committee
+                //              period boundary
+                //
+                let next_period_signature_slot = base_signature_slot
+                    + ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+                let next_period_attested_slot = next_period_signature_slot - 1;
+                let store = MockStore {
+                    next_sync_committee: Some(scm.get_committee(2).to_committee()),
+                    ..store.clone()
+                };
+                let update_invalid_inconsistent_periods = gen_light_client_update::<32, _>(
+                    &ctx,
+                    next_period_signature_slot,
+                    next_period_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_invalid_inconsistent_periods,
+                );
+                assert!(res.is_err(), "{:?}", res);
+                if let Some(Error::InconsistentUpdatePeriod(a, b)) = res.as_ref().err() {
+                    assert_eq!(a, &1.into());
+                    assert_eq!(b, &2.into());
+                } else {
+                    panic!("unexpected error: {:?}", res);
+                }
+            }
         }
 
         #[test]
@@ -610,12 +730,14 @@ mod tests {
             let dummy_execution_state_root = [1u8; 32].into();
             let dummy_execution_block_number = 1;
             let base_signature_slot = start_slot + 11;
-            let base_attested_slot = start_slot + 10;
+            let base_attested_slot = base_signature_slot - 1;
+            let base_finalized_epoch = base_attested_slot / ctx.slots_per_epoch();
+
             let update_1 = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot,
                 base_attested_slot,
-                U64(1) * ctx.slots_per_epoch(),
+                base_finalized_epoch,
                 dummy_execution_state_root,
                 dummy_execution_block_number.into(),
                 current_sync_committee,
@@ -628,71 +750,149 @@ mod tests {
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
-                    U64(1) * ctx.slots_per_epoch(),
+                    base_finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(3),
                     32,
                 );
-                assert!(SyncProtocolVerifier::default()
-                    .validate_misbehaviour(
-                        &ctx,
-                        &store,
-                        Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
-                            consensus_update_1: update_1.clone(),
-                            consensus_update_2: update_valid,
-                        }),
-                    )
-                    .is_ok());
-            }
-            {
-                let update_insufficient_attestations = gen_light_client_update_with_params::<32, _>(
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    U64(1) * ctx.slots_per_epoch(),
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    current_sync_committee,
-                    scm.get_committee(3),
-                    21,
+                    &store,
+                    Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_valid,
+                    }),
                 );
-                assert!(SyncProtocolVerifier::default()
-                    .validate_misbehaviour(
-                        &ctx,
-                        &store,
-                        Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
-                            consensus_update_1: update_1.clone(),
-                            consensus_update_2: update_insufficient_attestations,
-                        },),
-                    )
-                    .is_err());
+                assert!(res.is_ok(), "{:?}", res);
             }
             {
                 let update_valid_different_slots = gen_light_client_update_with_params::<32, _>(
                     &ctx,
                     base_signature_slot + 1,
                     base_attested_slot + 1,
-                    U64(1) * ctx.slots_per_epoch(),
+                    base_finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(3),
                     32,
                 );
-                assert!(SyncProtocolVerifier::default()
-                    .validate_misbehaviour(
-                        &ctx,
-                        &store,
-                        Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
-                            consensus_update_1: update_1.clone(),
-                            consensus_update_2: update_valid_different_slots,
-                        },),
-                    )
-                    .is_ok());
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_valid_different_slots,
+                    }),
+                );
+                assert!(res.is_ok(), "{:?}", res);
             }
-            {}
+            {
+                let update_insufficient_attestations = gen_light_client_update_with_params::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(3),
+                    21, // at least 22 is required
+                );
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_insufficient_attestations,
+                    }),
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let different_period_attested_slot = base_attested_slot
+                    + ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+                let update_different_attested_period = gen_light_client_update_with_params::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    different_period_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(3),
+                    32,
+                );
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_different_attested_period,
+                    }),
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let different_dummy_execution_state_root = [2u8; 32].into();
+                let update_different_finalized_block = gen_light_client_update_with_params::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    different_dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(2),
+                    32,
+                );
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::FinalizedHeader(FinalizedHeaderMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_different_finalized_block,
+                    }),
+                );
+                assert!(res.is_ok(), "{:?}", res);
+            }
+            {
+                let different_dummy_execution_state_root = [2u8; 32].into();
+                let different_finalized_epoch = base_finalized_epoch - 1;
+                let update_different_finalized_block = gen_light_client_update_with_params::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    different_finalized_epoch,
+                    different_dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(2),
+                    32,
+                );
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::FinalizedHeader(FinalizedHeaderMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_different_finalized_block,
+                    }),
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::FinalizedHeader(FinalizedHeaderMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_1.clone(),
+                    }),
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
         }
     }
 
@@ -842,6 +1042,7 @@ mod tests {
             scm: &MockSyncCommitteeManager<SYNC_COMMITTEE_SIZE>,
         ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
             let signature_period = compute_sync_committee_period_at_slot(ctx, signature_slot);
+            let attested_period = compute_sync_committee_period_at_slot(ctx, attested_slot);
             gen_light_client_update_with_params(
                 ctx,
                 signature_slot,
@@ -850,7 +1051,7 @@ mod tests {
                 execution_state_root,
                 execution_block_number,
                 scm.get_committee(signature_period.into()),
-                scm.get_committee((signature_period + 1).into()),
+                scm.get_committee((attested_period + 1).into()),
                 SYNC_COMMITTEE_SIZE,
             )
         }
@@ -866,7 +1067,7 @@ mod tests {
             finalized_epoch: Epoch,
             execution_state_root: H256,
             execution_block_number: BlockNumber,
-            current_sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
+            sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
             next_sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
             sign_num: usize,
         ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
@@ -887,7 +1088,7 @@ mod tests {
                     ctx,
                     attested_slot,
                     finalized_root,
-                    current_sync_committee.to_committee(),
+                    sync_committee.to_committee(),
                     next_sync_committee.to_committee(),
                 );
 
@@ -907,7 +1108,7 @@ mod tests {
                 attested_header: attested_header.clone(),
                 finalized_header: (finalized_block.to_header(), finalized_checkpoint_branch),
                 signature_slot,
-                sync_aggregate: current_sync_committee.sign_header(
+                sync_aggregate: sync_committee.sign_header(
                     ctx,
                     signature_slot,
                     attested_header,

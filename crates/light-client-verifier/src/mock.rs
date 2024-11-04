@@ -39,10 +39,11 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
     >(
-        &mut self,
+        &self,
         ctx: &CC,
         consensus_update: &CU,
-    ) -> Result<bool, crate::errors::Error> {
+    ) -> Result<Option<Self>, crate::errors::Error> {
+        let mut new_store = self.clone();
         let store_period =
             compute_sync_committee_period_at_slot(ctx, self.latest_finalized_header.slot);
         let attested_period = compute_sync_committee_period_at_slot(
@@ -50,18 +51,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
             consensus_update.attested_beacon_header().slot,
         );
 
-        let mut updated = if store_period == attested_period {
+        if store_period == attested_period {
             if let Some(committee) = consensus_update.next_sync_committee() {
-                self.next_sync_committee = Some(committee.clone());
-                true
-            } else {
-                false
+                new_store.next_sync_committee = Some(committee.clone());
             }
         } else if store_period + 1 == attested_period {
             if let Some(committee) = self.next_sync_committee.as_ref() {
-                self.current_sync_committee = committee.clone();
-                self.next_sync_committee = consensus_update.next_sync_committee().cloned();
-                true
+                new_store.current_sync_committee = committee.clone();
+                new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
             } else {
                 return Err(crate::errors::Error::CannotRotateNextSyncCommittee(
                     store_period,
@@ -76,10 +73,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
             ));
         };
         if consensus_update.finalized_beacon_header().slot > self.latest_finalized_header.slot {
-            self.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
-            updated = true;
+            new_store.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
         }
-        Ok(updated)
+        if self != &new_store {
+            Ok(Some(new_store))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -99,13 +99,5 @@ impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZ
         } else {
             None
         }
-    }
-
-    fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        ctx: &CC,
-        update: &CU,
-    ) -> Result<(), crate::errors::Error> {
-        update.ensure_consistent_update_period(ctx)
     }
 }

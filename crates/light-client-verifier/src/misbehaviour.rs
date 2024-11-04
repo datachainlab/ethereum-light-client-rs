@@ -31,7 +31,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>
 
 /// FinalizedHeaderMisbehaviour is a misbehaviour that satisfies the followings:
 /// 1. Two updates are valid with the consensus state of the client
-/// 2. Each finalized header in the two updates has a same finalized slot
+/// 2. Each finalized header in the two updates has a same slot
 /// 3. The two finalized headers are different from each other
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FinalizedHeaderMisbehaviour<

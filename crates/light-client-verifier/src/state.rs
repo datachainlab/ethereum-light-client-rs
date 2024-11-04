@@ -19,5 +19,7 @@ pub trait LightClientStoreReader<const SYNC_COMMITTEE_SIZE: usize> {
         &self,
         ctx: &CC,
         update: &C,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error> {
+        update.ensure_consistent_update_period(ctx)
+    }
 }
