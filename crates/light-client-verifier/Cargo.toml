@@ -27,4 +27,4 @@ std = [
     "patricia-merkle-trie/std"
 ]
 mock = []
-test-utils = ["std", "mock", "rand"]
+test-utils = ["std", "mock", "rand", "ethereum-consensus/prover"]

@@ -544,7 +544,7 @@ pub mod test_utils {
             );
 
         let (_, finalized_execution_branch) =
-            ethereum_consensus::fork::deneb::test_utils::gen_execution_payload_proof(
+            ethereum_consensus::fork::deneb::prover::gen_execution_payload_proof(
                 &finalized_block.body,
             )
             .unwrap();

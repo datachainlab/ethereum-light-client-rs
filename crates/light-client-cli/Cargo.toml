@@ -18,6 +18,6 @@ dirs = "4.0"
 env_logger = { version = "0.10.0" }
 tokio = { version = "1.24.1", default-features = false, features = ["rt-multi-thread", "macros"] }
 
-ethereum-consensus = { path = "../consensus" }
+ethereum-consensus = { path = "../consensus", features = ["prover"]}
 ethereum-light-client-verifier = { path = "../light-client-verifier" }
 lodestar-rpc = { path = "../lodestar-rpc" }

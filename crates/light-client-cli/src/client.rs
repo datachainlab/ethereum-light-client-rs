@@ -224,11 +224,11 @@ impl<
 
         let execution_update = {
             let execution_payload_header = update.finalized_header.execution.clone();
-            let (_, state_root_branch) = deneb::gen_execution_payload_field_proof(
+            let (_, state_root_branch) = deneb::prover::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_STATE_ROOT_SUBTREE_INDEX,
             )?;
-            let (_, block_number_branch) = deneb::gen_execution_payload_field_proof(
+            let (_, block_number_branch) = deneb::prover::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_BLOCK_NUMBER_SUBTREE_INDEX,
             )?;

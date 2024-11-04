@@ -7,9 +7,7 @@ use crate::{
     },
     bls::Signature,
     compute::hash_tree_root,
-    errors::Error,
     internal_prelude::*,
-    merkle::{get_subtree_index, MerkleTree},
     sync_protocol::{SyncAggregate, SyncCommittee},
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
@@ -311,62 +309,65 @@ pub struct LightClientHeader<const BYTES_PER_LOGS_BLOOM: usize, const MAX_EXTRA_
     pub execution_branch: Vec<H256>,
 }
 
-pub fn gen_execution_payload_field_proof<
-    const BYTES_PER_LOGS_BLOOM: usize,
-    const MAX_EXTRA_DATA_BYTES: usize,
->(
-    payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-    leaf_index: usize,
-) -> Result<(Root, Vec<H256>), Error> {
-    let tree = MerkleTree::from_leaves(
-        ([
-            payload.parent_hash.0,
-            hash_tree_root(payload.fee_recipient.clone()).unwrap().0,
-            payload.state_root.0,
-            payload.receipts_root.0,
-            hash_tree_root(payload.logs_bloom.clone()).unwrap().0,
-            payload.prev_randao.0,
-            hash_tree_root(payload.block_number).unwrap().0,
-            hash_tree_root(payload.gas_limit).unwrap().0,
-            hash_tree_root(payload.gas_used).unwrap().0,
-            hash_tree_root(payload.timestamp).unwrap().0,
-            hash_tree_root(payload.extra_data.clone()).unwrap().0,
-            hash_tree_root(payload.base_fee_per_gas.clone()).unwrap().0,
-            payload.block_hash.0,
-            payload.transactions_root.0,
-            payload.withdrawals_root.0,
-            hash_tree_root(payload.blob_gas_used).unwrap().0,
-            hash_tree_root(payload.excess_blob_gas).unwrap().0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ] as [_; 32])
-            .as_ref(),
-    );
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(&[leaf_index])
-            .proof_hashes()
-            .iter()
-            .map(|h| H256::from_slice(h))
-            .collect::<Vec<H256>>(),
-    ))
-}
-
-pub mod test_utils {
+#[cfg(any(feature = "prover", test))]
+pub mod prover {
     use super::*;
+    use crate::errors::Error;
+    use crate::merkle::{get_subtree_index, MerkleTree};
+
+    pub fn gen_execution_payload_field_proof<
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+    >(
+        payload: &ExecutionPayloadHeader<BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
+        leaf_index: usize,
+    ) -> Result<(Root, Vec<H256>), Error> {
+        let tree = MerkleTree::from_leaves(
+            ([
+                payload.parent_hash.0,
+                hash_tree_root(payload.fee_recipient.clone()).unwrap().0,
+                payload.state_root.0,
+                payload.receipts_root.0,
+                hash_tree_root(payload.logs_bloom.clone()).unwrap().0,
+                payload.prev_randao.0,
+                hash_tree_root(payload.block_number).unwrap().0,
+                hash_tree_root(payload.gas_limit).unwrap().0,
+                hash_tree_root(payload.gas_used).unwrap().0,
+                hash_tree_root(payload.timestamp).unwrap().0,
+                hash_tree_root(payload.extra_data.clone()).unwrap().0,
+                hash_tree_root(payload.base_fee_per_gas.clone()).unwrap().0,
+                payload.block_hash.0,
+                payload.transactions_root.0,
+                payload.withdrawals_root.0,
+                hash_tree_root(payload.blob_gas_used).unwrap().0,
+                hash_tree_root(payload.excess_blob_gas).unwrap().0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ] as [_; 32])
+                .as_ref(),
+        );
+        Ok((
+            H256(tree.root().unwrap()),
+            tree.proof(&[leaf_index])
+                .proof_hashes()
+                .iter()
+                .map(|h| H256::from_slice(h))
+                .collect::<Vec<H256>>(),
+        ))
+    }
 
     pub fn gen_execution_payload_proof<
         const MAX_PROPOSER_SLASHINGS: usize,
@@ -463,8 +464,7 @@ mod tests {
             block.hash_tree_root().unwrap()
         );
 
-        let (block_root, payload_proof) =
-            test_utils::gen_execution_payload_proof(&block.body).unwrap();
+        let (block_root, payload_proof) = prover::gen_execution_payload_proof(&block.body).unwrap();
         assert_eq!(
             block_root.as_bytes(),
             block.body.hash_tree_root().unwrap().as_bytes()
@@ -482,7 +482,7 @@ mod tests {
         .is_ok());
 
         {
-            let (root, proof) = gen_execution_payload_field_proof(
+            let (root, proof) = prover::gen_execution_payload_field_proof(
                 &payload_header,
                 get_subtree_index(DENEB_FORK_SPEC.execution_payload_state_root_gindex) as usize,
             )
@@ -497,7 +497,7 @@ mod tests {
             .is_ok());
         }
         {
-            let (root, proof) = gen_execution_payload_field_proof(
+            let (root, proof) = prover::gen_execution_payload_field_proof(
                 &payload_header,
                 get_subtree_index(DENEB_FORK_SPEC.execution_payload_block_number_gindex) as usize,
             )
