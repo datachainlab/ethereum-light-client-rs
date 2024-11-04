@@ -1,10 +1,15 @@
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
+    compute::compute_sync_committee_period_at_slot,
     fork::deneb::{ExecutionPayloadHeader, LightClientBootstrap},
     sync_protocol::SyncCommittee,
     types::{H256, U64},
 };
-use ethereum_light_client_verifier::{state::LightClientStoreReader, updates::ExecutionUpdate};
+use ethereum_light_client_verifier::{
+    context::ChainConsensusVerificationContext,
+    state::LightClientStoreReader,
+    updates::{ConsensusUpdate, ExecutionUpdate},
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct LightClientStore<
@@ -43,6 +48,69 @@ impl<
             next_sync_committee: None,
         }
     }
+
+    pub fn current_slot(&self) -> Slot {
+        self.latest_finalized_header.slot
+    }
+
+    pub fn current_period<CC: ethereum_consensus::context::ChainContext>(
+        &self,
+        ctx: &CC,
+    ) -> ethereum_consensus::sync_protocol::SyncCommitteePeriod {
+        compute_sync_committee_period_at_slot(ctx, self.current_slot())
+    }
+
+    pub fn apply_light_client_update<
+        CC: ChainConsensusVerificationContext,
+        CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
+    >(
+        &self,
+        ctx: &CC,
+        consensus_update: &CU,
+    ) -> Result<Option<Self>, crate::errors::Error> {
+        let mut new_store = self.clone();
+        let store_period =
+            compute_sync_committee_period_at_slot(ctx, new_store.latest_finalized_header.slot);
+        let attested_period = compute_sync_committee_period_at_slot(
+            ctx,
+            consensus_update.attested_beacon_header().slot,
+        );
+
+        let mut updated = if store_period == attested_period {
+            if let Some(committee) = consensus_update.next_sync_committee() {
+                new_store.next_sync_committee = Some(committee.clone());
+                true
+            } else {
+                false
+            }
+        } else if store_period + 1 == attested_period {
+            if let Some(committee) = new_store.next_sync_committee.as_ref() {
+                new_store.current_sync_committee = committee.clone();
+                new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
+                true
+            } else {
+                return Err(crate::errors::Error::CannotRotateNextSyncCommittee(
+                    store_period,
+                    attested_period,
+                ));
+            }
+        } else {
+            return Err(crate::errors::Error::UnexpectedAttestedPeriod(
+                store_period,
+                attested_period,
+                "attested period must be equal to store_period or store_period+1".into(),
+            ));
+        };
+        if consensus_update.finalized_beacon_header().slot > self.latest_finalized_header.slot {
+            new_store.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
+            updated = true;
+        }
+        if updated {
+            Ok(Some(new_store))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl<
@@ -52,16 +120,80 @@ impl<
     > LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
 {
-    fn current_slot(&self) -> Slot {
-        self.latest_finalized_header.slot
+    fn get_sync_committee<CC: ethereum_consensus::context::ChainContext>(
+        &self,
+        ctx: &CC,
+        period: ethereum_consensus::sync_protocol::SyncCommitteePeriod,
+    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        // https://github.com/ethereum/consensus-specs/blob/1b408e9354358cd7f883c170813e8bf93c922a94/specs/altair/light-client/sync-protocol.md#validate_light_client_update
+        // # Verify sync committee aggregate signature
+        // if update_signature_period == store_period:
+        //     sync_committee = store.current_sync_committee
+        // else:
+        //     sync_committee = store.next_sync_committee
+        let current_period = self.current_period(ctx);
+        if period == current_period {
+            Some(self.current_sync_committee.clone())
+        } else if period == current_period + 1 {
+            self.next_sync_committee.clone()
+        } else {
+            None
+        }
     }
 
-    fn current_sync_committee(&self) -> &SyncCommittee<SYNC_COMMITTEE_SIZE> {
-        &self.current_sync_committee
-    }
+    fn ensure_relevant_update<
+        CC: ethereum_consensus::context::ChainContext,
+        C: ethereum_light_client_verifier::updates::ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
+    >(
+        &self,
+        ctx: &CC,
+        update: &C,
+    ) -> Result<(), ethereum_light_client_verifier::errors::Error> {
+        update.ensure_consistent_update_period(ctx)?;
 
-    fn next_sync_committee(&self) -> Option<&SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        self.next_sync_committee.as_ref()
+        let store_period = compute_sync_committee_period_at_slot(ctx, self.current_slot());
+        let update_attested_period =
+            compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);
+        let update_has_next_sync_committee = self.next_sync_committee.is_none()
+            && (update.next_sync_committee().is_some() && update_attested_period == store_period);
+
+        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#validate_light_client_update
+        // assert (update_attested_slot > store.finalized_header.beacon.slot or update_has_next_sync_committee)
+        if !(update.attested_beacon_header().slot > self.current_slot()
+            || update_has_next_sync_committee)
+        {
+            return Err(ethereum_light_client_verifier::errors::Error::IrrelevantConsensusUpdates(format!(
+                    "attested_beacon_header_slot={} store_slot={} update_has_next_sync_committee={} is_next_sync_committee_known={}",
+                    update.attested_beacon_header().slot,
+                    self.current_slot(),
+                    update_has_next_sync_committee,
+                    self.next_sync_committee.is_some()
+                )));
+        }
+
+        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#process_light_client_update
+        // update_has_finalized_next_sync_committee = (
+        //     not is_next_sync_committee_known(store)
+        //     and is_sync_committee_update(update) and is_finality_update(update) and (
+        //         compute_sync_committee_period_at_slot(update.finalized_header.beacon.slot)
+        //         == compute_sync_committee_period_at_slot(update.attested_header.beacon.slot)
+        //     )
+        // )
+        let update_has_finalized_next_sync_committee =
+            self.next_sync_committee.is_none() && update.next_sync_committee().is_some(); // equivalent to is_sync_committee_update(update)
+
+        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#process_light_client_update
+        // update.finalized_header.beacon.slot > store.finalized_header.beacon.slot
+        // or update_has_finalized_next_sync_committee
+        if !(update_has_finalized_next_sync_committee
+            || update.finalized_beacon_header().slot > self.current_slot())
+        {
+            return Err(ethereum_light_client_verifier::errors::Error::IrrelevantConsensusUpdates(format!(
+                    "finalized_beacon_header_slot={} store_slot={} update_has_finalized_next_sync_committee={}",
+                    update.finalized_beacon_header().slot, self.current_slot(), update_has_finalized_next_sync_committee
+                )));
+        }
+        Ok(())
     }
 }
 

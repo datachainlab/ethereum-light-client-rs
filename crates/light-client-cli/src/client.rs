@@ -16,8 +16,7 @@ use ethereum_consensus::{
 use ethereum_light_client_verifier::{
     consensus::SyncProtocolVerifier,
     context::{ChainConsensusVerificationContext, Fraction, LightClientContext},
-    state::should_update_sync_committees,
-    updates::{deneb::ConsensusUpdateInfo, ConsensusUpdate},
+    updates::deneb::ConsensusUpdateInfo,
 };
 use log::*;
 use std::time::SystemTime;
@@ -225,11 +224,11 @@ impl<
 
         let execution_update = {
             let execution_payload_header = update.finalized_header.execution.clone();
-            let (_, state_root_branch) = deneb::gen_execution_payload_field_proof(
+            let (_, state_root_branch) = deneb::prover::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_STATE_ROOT_SUBTREE_INDEX,
             )?;
-            let (_, block_number_branch) = deneb::gen_execution_payload_field_proof(
+            let (_, block_number_branch) = deneb::prover::gen_execution_payload_field_proof(
                 &execution_payload_header,
                 EXECUTION_PAYLOAD_BLOCK_NUMBER_SUBTREE_INDEX,
             )?;
@@ -268,37 +267,9 @@ impl<
         self.verifier
             .validate_updates(vctx, state, &updates.0, &updates.1)?;
 
-        self.apply_light_client_update(state, updates.0)
-    }
-
-    fn apply_light_client_update(
-        &self,
-        state: &LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>,
-        consensus_update: ConsensusUpdateInfo<
-            SYNC_COMMITTEE_SIZE,
-            BYTES_PER_LOGS_BLOOM,
-            MAX_EXTRA_DATA_BYTES,
-        >,
-    ) -> Result<
-        Option<LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>>,
-    > {
-        let mut new_state = state.clone();
-        let (current_committee, next_committee) =
-            should_update_sync_committees(&self.ctx, state, &consensus_update)?;
-        if let Some(current_committee) = current_committee {
-            new_state.current_sync_committee = current_committee.clone();
-        }
-        if let Some(next_committee) = next_committee {
-            new_state.next_sync_committee = next_committee.cloned();
-        }
-        if consensus_update.finalized_beacon_header().slot > state.latest_finalized_header.slot {
-            new_state.latest_finalized_header = consensus_update.finalized_beacon_header().clone();
-            new_state.latest_execution_payload_header =
-                consensus_update.finalized_header.execution.clone();
-        }
-        if *state != new_state {
-            self.ctx.store_light_client_state(&new_state)?;
-            Ok(Some(new_state))
+        if let Some(new_store) = state.apply_light_client_update(vctx, &updates.0)? {
+            self.ctx.store_light_client_state(&new_store)?;
+            Ok(Some(new_store))
         } else {
             Ok(None)
         }

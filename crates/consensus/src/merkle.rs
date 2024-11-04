@@ -2,6 +2,7 @@ use crate::{beacon::Root, errors::MerkleError, internal_prelude::*, types::H256}
 use sha2::{Digest, Sha256};
 
 /// MerkleTree is a merkle tree implementation using sha256 as a hashing algorithm.
+#[cfg(any(feature = "prover", test))]
 pub type MerkleTree = rs_merkle::MerkleTree<rs_merkle::algorithms::Sha256>;
 
 pub fn is_valid_normalized_merkle_branch(
@@ -62,6 +63,7 @@ pub fn is_valid_merkle_branch(
             branch.to_vec(),
             subtree_index,
             root,
+            value,
         ))
     }
 }

@@ -1,6 +1,8 @@
 use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationContext};
 use crate::errors::Error;
 use crate::internal_prelude::*;
+use ethereum_consensus::compute::compute_sync_committee_period_at_slot;
+use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     merkle::is_valid_normalized_merkle_branch,
@@ -41,6 +43,21 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE>;
     fn signature_slot(&self) -> Slot;
 
+    fn ensure_consistent_update_period<C: ChainContext>(&self, ctx: &C) -> Result<(), Error> {
+        let finalized_period =
+            compute_sync_committee_period_at_slot(ctx, self.finalized_beacon_header().slot);
+        let attested_period =
+            compute_sync_committee_period_at_slot(ctx, self.attested_beacon_header().slot);
+        if finalized_period == attested_period {
+            Ok(())
+        } else {
+            Err(Error::InconsistentUpdatePeriod(
+                finalized_period,
+                attested_period,
+            ))
+        }
+    }
+
     /// ref. https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#is_valid_light_client_header
     /// NOTE: There are no validation for the execution payload, so you should implement it if the update contains the execution payload.
     fn is_valid_light_client_finalized_header<C: ChainConsensusVerificationContext>(
@@ -57,6 +74,7 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
         .map_err(Error::InvalidFinalizedExecutionPayload)
     }
 
+    /// validate the basic properties of the update
     fn validate_basic<C: ConsensusVerificationContext>(&self, ctx: &C) -> Result<(), Error> {
         // ensure that sync committee's aggreated key matches pubkeys
         if let Some(next_sync_committee) = self.next_sync_committee() {
@@ -78,26 +96,6 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
                 self.finalized_beacon_header().slot,
             ));
         }
-
-        // ensure that suffienct participants exist
-
-        let participants = self.sync_aggregate().count_participants();
-        // from the spec: `assert sum(sync_aggregate.sync_committee_bits) >= MIN_SYNC_COMMITTEE_PARTICIPANTS`
-        if participants < ctx.min_sync_committee_participants() {
-            return Err(Error::LessThanMinimalParticipants(
-                participants,
-                ctx.min_sync_committee_participants(),
-            ));
-        } else if participants as u64 * ctx.signature_threshold().denominator
-            < self.sync_aggregate().sync_committee_bits.len() as u64
-                * ctx.signature_threshold().numerator
-        {
-            return Err(Error::InsufficientParticipants(
-                participants as u64,
-                self.sync_aggregate().sync_committee_bits.len() as u64,
-            ));
-        }
-
         Ok(())
     }
 }
@@ -119,3 +117,14 @@ pub trait ExecutionUpdate: core::fmt::Debug + Clone + PartialEq + Eq {
         Ok(())
     }
 }
+
+pub type LightClientBootstrapInfo<const SYNC_COMMITTEE_SIZE: usize> =
+    bellatrix::LightClientBootstrapInfo<SYNC_COMMITTEE_SIZE>;
+
+pub type LightClientUpdate<const SYNC_COMMITTEE_SIZE: usize> =
+    ethereum_consensus::fork::bellatrix::LightClientUpdate<SYNC_COMMITTEE_SIZE>;
+
+pub type ConsensusUpdateInfo<const SYNC_COMMITTEE_SIZE: usize> =
+    bellatrix::ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>;
+
+pub type ExecutionUpdateInfo = bellatrix::ExecutionUpdateInfo;

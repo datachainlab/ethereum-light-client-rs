@@ -1,4 +1,5 @@
 use displaydoc::Display;
+use ethereum_consensus::sync_protocol::SyncCommitteePeriod;
 
 #[derive(Debug, Display)]
 pub enum Error {
@@ -14,6 +15,10 @@ pub enum Error {
     CommontError(ethereum_consensus::errors::Error),
     /// finalized header not found
     FinalizedHeaderNotFound,
+    /// unexpected attested period: `store={0} attested={1} reason={2}`
+    UnexpectedAttestedPeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
+    /// cannot rotate to next sync committee: `store={0} finalized={1}`
+    CannotRotateNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
     /// other error: `{description}`
     Other { description: String },
 }
