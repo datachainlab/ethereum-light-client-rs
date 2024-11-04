@@ -87,7 +87,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         consensus_update: &CU,
     ) -> Result<(), Error> {
         consensus_update.validate_basic(ctx)?;
-        self.ensure_relevant_update(ctx, store, consensus_update)?;
+        store.ensure_relevant_update(ctx, consensus_update)?;
         let sync_committee = self.get_sync_committee(ctx, store, consensus_update)?;
         validate_light_client_update(ctx, store, consensus_update)?;
         verify_sync_committee_attestation(ctx, consensus_update, &sync_committee)?;
@@ -148,62 +148,6 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         Ok(())
     }
 
-    /// ensure that the consensus update is relevant
-    pub fn ensure_relevant_update<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
-        &self,
-        ctx: &CC,
-        store: &ST,
-        update: &CU,
-    ) -> Result<(), Error> {
-        let store_period = compute_sync_committee_period_at_slot(ctx, store.current_slot());
-
-        let update_attested_period =
-            compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);
-        let update_has_next_sync_committee = store.next_sync_committee().is_none()
-            && (update.next_sync_committee().is_some() && update_attested_period == store_period);
-
-        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#validate_light_client_update
-        // assert (update_attested_slot > store.finalized_header.beacon.slot or update_has_next_sync_committee)
-        if !(update.attested_beacon_header().slot > store.current_slot()
-            || update_has_next_sync_committee)
-        {
-            return Err(Error::IrrelevantConsensusUpdates(format!(
-                    "attested_beacon_header_slot={} store_slot={} update_has_next_sync_committee={} is_next_sync_committee_known={}",
-                    update.attested_beacon_header().slot,
-                    store.current_slot(),
-                    update_has_next_sync_committee,
-                    store.next_sync_committee().is_some()
-                )));
-        }
-
-        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#process_light_client_update
-        // update_has_finalized_next_sync_committee = (
-        //     not is_next_sync_committee_known(store)
-        //     and is_sync_committee_update(update) and is_finality_update(update) and (
-        //         compute_sync_committee_period_at_slot(update.finalized_header.beacon.slot)
-        //         == compute_sync_committee_period_at_slot(update.attested_header.beacon.slot)
-        //     )
-        // )
-        let update_has_finalized_next_sync_committee = store.next_sync_committee().is_none()
-            && update.next_sync_committee().is_some() // equivalent to is_sync_committee_update(update)
-            && compute_sync_committee_period_at_slot(ctx, update.finalized_beacon_header().slot)
-                == update_attested_period;
-
-        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#process_light_client_update
-        // update.finalized_header.beacon.slot > store.finalized_header.beacon.slot
-        // or update_has_finalized_next_sync_committee
-        if !(update_has_finalized_next_sync_committee
-            || update.finalized_beacon_header().slot > store.current_slot())
-        {
-            return Err(Error::IrrelevantConsensusUpdates(format!(
-                    "finalized_beacon_header_slot={} store_slot={} update_has_finalized_next_sync_committee={}",
-                    update.finalized_beacon_header().slot, store.current_slot(), update_has_finalized_next_sync_committee
-                )));
-        }
-
-        Ok(())
-    }
-
     /// get the sync committee from the store
     pub fn get_sync_committee<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
@@ -211,32 +155,15 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         store: &ST,
         update: &CU,
     ) -> Result<SyncCommittee<SYNC_COMMITTEE_SIZE>, Error> {
-        let store_period = compute_sync_committee_period_at_slot(ctx, store.current_slot());
         let update_signature_period =
             compute_sync_committee_period_at_slot(ctx, update.signature_slot());
-
-        // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#validate_light_client_update
-        // # Verify sync committee aggregate signature
-        // if update_signature_period == store_period:
-        //     sync_committee = store.current_sync_committee
-        // else:
-        //     sync_committee = store.next_sync_committee
-        if update_signature_period == store_period {
-            Ok(store.current_sync_committee().clone())
-        } else if update_signature_period == store_period + 1 {
-            if let Some(next_sync_committee) = store.next_sync_committee() {
-                Ok(next_sync_committee.clone())
-            } else {
-                Err(Error::NoNextSyncCommitteeInStore(
-                    store_period.into(),
-                    update_signature_period.into(),
-                ))
-            }
+        if let Some(committee) = store.get_sync_committee(ctx, update_signature_period) {
+            Ok(committee)
         } else {
             Err(Error::UnexpectedSingaturePeriod(
-                store_period,
                 update_signature_period,
-                "signature period must be equal to store_period or store_period+1".into(),
+                "store does not have the sync committee corresponding to the update signature period"
+                    .into(),
             ))
         }
     }
@@ -252,6 +179,24 @@ pub fn verify_sync_committee_attestation<
     consensus_update: &CU,
     sync_committee: &SyncCommittee<SYNC_COMMITTEE_SIZE>,
 ) -> Result<(), Error> {
+    // ensure that suffienct participants exist
+    let participants = consensus_update.sync_aggregate().count_participants();
+    // from the spec: `assert sum(sync_aggregate.sync_committee_bits) >= MIN_SYNC_COMMITTEE_PARTICIPANTS`
+    if participants < ctx.min_sync_committee_participants() {
+        return Err(Error::LessThanMinimalParticipants(
+            participants,
+            ctx.min_sync_committee_participants(),
+        ));
+    } else if participants as u64 * ctx.signature_threshold().denominator
+        < consensus_update.sync_aggregate().sync_committee_bits.len() as u64
+            * ctx.signature_threshold().numerator
+    {
+        return Err(Error::InsufficientParticipants(
+            participants as u64,
+            consensus_update.sync_aggregate().sync_committee_bits.len() as u64,
+        ));
+    }
+
     let participant_pubkeys: Vec<BLSPublicKey> = consensus_update
         .sync_aggregate()
         .sync_committee_bits
@@ -364,13 +309,10 @@ pub fn validate_light_client_update<
             ctx,
             consensus_update.attested_beacon_header().slot,
         );
-        let store_period = compute_sync_committee_period_at_slot(ctx, store.current_slot());
-        if let Some(store_next_sync_committee) = store.next_sync_committee() {
-            if update_attested_period == store_period
-                && store_next_sync_committee != update_next_sync_committee
-            {
+        if let Some(committee) = store.get_sync_committee(ctx, update_attested_period + 1) {
+            if committee != *update_next_sync_committee {
                 return Err(Error::InconsistentNextSyncCommittee(
-                    store_next_sync_committee.aggregate_pubkey.clone(),
+                    committee.aggregate_pubkey.clone(),
                     update_next_sync_committee.aggregate_pubkey.clone(),
                 ));
             }
@@ -950,8 +892,10 @@ mod tests {
                 );
 
             let (_, finalized_execution_branch) =
-                ethereum_consensus::fork::deneb::gen_execution_payload_proof(&finalized_block.body)
-                    .unwrap();
+                ethereum_consensus::fork::deneb::test_utils::gen_execution_payload_proof(
+                    &finalized_block.body,
+                )
+                .unwrap();
             let finalized_execution_root =
                 hash_tree_root(finalized_block.body.execution_payload.clone())
                     .unwrap()
