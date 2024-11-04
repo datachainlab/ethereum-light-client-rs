@@ -365,72 +365,76 @@ pub fn gen_execution_payload_field_proof<
     ))
 }
 
-pub fn gen_execution_payload_proof<
-    const MAX_PROPOSER_SLASHINGS: usize,
-    const MAX_VALIDATORS_PER_COMMITTEE: usize,
-    const MAX_ATTESTER_SLASHINGS: usize,
-    const MAX_ATTESTATIONS: usize,
-    const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
-    const MAX_DEPOSITS: usize,
-    const MAX_VOLUNTARY_EXITS: usize,
-    const BYTES_PER_LOGS_BLOOM: usize,
-    const MAX_EXTRA_DATA_BYTES: usize,
-    const MAX_BYTES_PER_TRANSACTION: usize,
-    const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
-    const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
-    const MAX_BLS_TO_EXECUTION_CHANGES: usize,
-    const SYNC_COMMITTEE_SIZE: usize,
-    const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
->(
-    body: &BeaconBlockBody<
-        MAX_PROPOSER_SLASHINGS,
-        MAX_VALIDATORS_PER_COMMITTEE,
-        MAX_ATTESTER_SLASHINGS,
-        MAX_ATTESTATIONS,
-        DEPOSIT_CONTRACT_TREE_DEPTH,
-        MAX_DEPOSITS,
-        MAX_VOLUNTARY_EXITS,
-        BYTES_PER_LOGS_BLOOM,
-        MAX_EXTRA_DATA_BYTES,
-        MAX_BYTES_PER_TRANSACTION,
-        MAX_TRANSACTIONS_PER_PAYLOAD,
-        MAX_WITHDRAWALS_PER_PAYLOAD,
-        MAX_BLS_TO_EXECUTION_CHANGES,
-        SYNC_COMMITTEE_SIZE,
-        MAX_BLOB_COMMITMENTS_PER_BLOCK,
-    >,
-) -> Result<(Root, Vec<H256>), Error> {
-    let tree = MerkleTree::from_leaves(
-        ([
-            hash_tree_root(body.randao_reveal.clone()).unwrap().0,
-            hash_tree_root(body.eth1_data.clone()).unwrap().0,
-            body.graffiti.0,
-            hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attester_slashings.clone()).unwrap().0,
-            hash_tree_root(body.attestations.clone()).unwrap().0,
-            hash_tree_root(body.deposits.clone()).unwrap().0,
-            hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
-            hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
-            hash_tree_root(body.execution_payload.clone()).unwrap().0,
-            hash_tree_root(body.bls_to_execution_changes.clone())
-                .unwrap()
-                .0,
-            hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ] as [_; 16])
-            .as_ref(),
-    );
-    Ok((
-        H256(tree.root().unwrap()),
-        tree.proof(&[get_subtree_index(DENEB_FORK_SPEC.execution_payload_gindex) as usize])
-            .proof_hashes()
-            .iter()
-            .map(|h| H256::from_slice(h))
-            .collect(),
-    ))
+pub mod test_utils {
+    use super::*;
+
+    pub fn gen_execution_payload_proof<
+        const MAX_PROPOSER_SLASHINGS: usize,
+        const MAX_VALIDATORS_PER_COMMITTEE: usize,
+        const MAX_ATTESTER_SLASHINGS: usize,
+        const MAX_ATTESTATIONS: usize,
+        const DEPOSIT_CONTRACT_TREE_DEPTH: usize,
+        const MAX_DEPOSITS: usize,
+        const MAX_VOLUNTARY_EXITS: usize,
+        const BYTES_PER_LOGS_BLOOM: usize,
+        const MAX_EXTRA_DATA_BYTES: usize,
+        const MAX_BYTES_PER_TRANSACTION: usize,
+        const MAX_TRANSACTIONS_PER_PAYLOAD: usize,
+        const MAX_WITHDRAWALS_PER_PAYLOAD: usize,
+        const MAX_BLS_TO_EXECUTION_CHANGES: usize,
+        const SYNC_COMMITTEE_SIZE: usize,
+        const MAX_BLOB_COMMITMENTS_PER_BLOCK: usize,
+    >(
+        body: &BeaconBlockBody<
+            MAX_PROPOSER_SLASHINGS,
+            MAX_VALIDATORS_PER_COMMITTEE,
+            MAX_ATTESTER_SLASHINGS,
+            MAX_ATTESTATIONS,
+            DEPOSIT_CONTRACT_TREE_DEPTH,
+            MAX_DEPOSITS,
+            MAX_VOLUNTARY_EXITS,
+            BYTES_PER_LOGS_BLOOM,
+            MAX_EXTRA_DATA_BYTES,
+            MAX_BYTES_PER_TRANSACTION,
+            MAX_TRANSACTIONS_PER_PAYLOAD,
+            MAX_WITHDRAWALS_PER_PAYLOAD,
+            MAX_BLS_TO_EXECUTION_CHANGES,
+            SYNC_COMMITTEE_SIZE,
+            MAX_BLOB_COMMITMENTS_PER_BLOCK,
+        >,
+    ) -> Result<(Root, Vec<H256>), Error> {
+        let tree = MerkleTree::from_leaves(
+            ([
+                hash_tree_root(body.randao_reveal.clone()).unwrap().0,
+                hash_tree_root(body.eth1_data.clone()).unwrap().0,
+                body.graffiti.0,
+                hash_tree_root(body.proposer_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attester_slashings.clone()).unwrap().0,
+                hash_tree_root(body.attestations.clone()).unwrap().0,
+                hash_tree_root(body.deposits.clone()).unwrap().0,
+                hash_tree_root(body.voluntary_exits.clone()).unwrap().0,
+                hash_tree_root(body.sync_aggregate.clone()).unwrap().0,
+                hash_tree_root(body.execution_payload.clone()).unwrap().0,
+                hash_tree_root(body.bls_to_execution_changes.clone())
+                    .unwrap()
+                    .0,
+                hash_tree_root(body.blob_kzg_commitments.clone()).unwrap().0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ] as [_; 16])
+                .as_ref(),
+        );
+        Ok((
+            H256(tree.root().unwrap()),
+            tree.proof(&[get_subtree_index(DENEB_FORK_SPEC.execution_payload_gindex) as usize])
+                .proof_hashes()
+                .iter()
+                .map(|h| H256::from_slice(h))
+                .collect(),
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -459,7 +463,8 @@ mod tests {
             block.hash_tree_root().unwrap()
         );
 
-        let (block_root, payload_proof) = gen_execution_payload_proof(&block.body).unwrap();
+        let (block_root, payload_proof) =
+            test_utils::gen_execution_payload_proof(&block.body).unwrap();
         assert_eq!(
             block_root.as_bytes(),
             block.body.hash_tree_root().unwrap().as_bytes()
