@@ -20,3 +20,7 @@ pub mod merkle;
 pub mod preset;
 pub mod sync_protocol;
 pub mod types;
+
+/// re-export
+pub use milagro_bls;
+pub use ssz_rs;
