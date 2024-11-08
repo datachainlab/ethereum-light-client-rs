@@ -979,7 +979,7 @@ mod tests {
         };
 
         #[test]
-        fn test_lc() {
+        fn test_consensus_update_validation() {
             let scm = MockSyncCommitteeManager::<32>::new(1, 4);
             let ctx = LightClientContext::new_with_config(
                 config::minimal::get_config(),
@@ -1228,7 +1228,7 @@ mod tests {
         }
 
         #[test]
-        fn test_lc_misbehaviour() {
+        fn test_misbehaviour_validation() {
             let scm = MockSyncCommitteeManager::<32>::new(1, 4);
             let current_sync_committee = scm.get_committee(1);
             let ctx = LightClientContext::new_with_config(
@@ -1242,11 +1242,11 @@ mod tests {
                     .as_secs()
                     .into(),
             );
-            let start_slot =
+            let base_store_slot =
                 U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
 
             let initial_header = BeaconBlockHeader {
-                slot: start_slot,
+                slot: base_store_slot,
                 ..Default::default()
             };
             let store = MockStore::new(
@@ -1255,11 +1255,12 @@ mod tests {
                 Default::default(),
             );
 
+            let base_finalized_epoch = base_store_slot / ctx.slots_per_epoch() + 1;
+            let base_attested_slot = (base_finalized_epoch + 2) * ctx.slots_per_epoch();
+            let base_signature_slot = base_attested_slot + 1;
+
             let dummy_execution_state_root = [1u8; 32].into();
             let dummy_execution_block_number = 1;
-            let base_signature_slot = start_slot + 11;
-            let base_attested_slot = base_signature_slot - 1;
-            let base_finalized_epoch = base_attested_slot / ctx.slots_per_epoch();
 
             let update_1 = gen_light_client_update_with_params::<32, _>(
                 &ctx,
@@ -1359,6 +1360,32 @@ mod tests {
                     Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
                         consensus_update_1: update_1.clone(),
                         consensus_update_2: update_different_attested_period,
+                    }),
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let attested_slot = (base_finalized_epoch + ctx.epochs_per_sync_committee_period())
+                    * ctx.slots_per_epoch();
+                let signature_slot = attested_slot + 1;
+                let update_not_finalized_next_sync_committee =
+                    gen_light_client_update_with_params::<32, _>(
+                        &ctx,
+                        signature_slot,
+                        attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        current_sync_committee,
+                        scm.get_committee(3),
+                        32,
+                    );
+                let res = SyncProtocolVerifier::default().validate_misbehaviour(
+                    &ctx,
+                    &store,
+                    Misbehaviour::NextSyncCommittee(NextSyncCommitteeMisbehaviour {
+                        consensus_update_1: update_1.clone(),
+                        consensus_update_2: update_not_finalized_next_sync_committee,
                     }),
                 );
                 assert!(res.is_err(), "{:?}", res);
