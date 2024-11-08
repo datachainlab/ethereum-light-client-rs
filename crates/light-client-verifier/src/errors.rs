@@ -55,6 +55,8 @@ pub enum Error {
     CommonError(ethereum_consensus::errors::Error),
     /// rlp decoder error: `{0:?}`
     RlpDecoderError(rlp::DecoderError),
+    /// the next sync committee is not finalized: `finalized={0} attested={1}`
+    NotFinalizedNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have same period: {0} != {1}
     DifferentPeriodInNextSyncCommitteeMisbehaviour(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have next sync committee
