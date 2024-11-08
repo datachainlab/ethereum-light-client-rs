@@ -53,13 +53,6 @@ impl<
         self.latest_finalized_header.slot
     }
 
-    pub fn current_period<CC: ethereum_consensus::context::ChainContext>(
-        &self,
-        ctx: &CC,
-    ) -> ethereum_consensus::sync_protocol::SyncCommitteePeriod {
-        compute_sync_committee_period_at_slot(ctx, self.current_slot())
-    }
-
     pub fn apply_light_client_update<
         CC: ChainConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
@@ -120,25 +113,19 @@ impl<
     > LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for LightClientStore<SYNC_COMMITTEE_SIZE, BYTES_PER_LOGS_BLOOM, MAX_EXTRA_DATA_BYTES>
 {
-    fn get_sync_committee<CC: ethereum_consensus::context::ChainContext>(
+    fn current_period<CC: ethereum_consensus::context::ChainContext>(
         &self,
         ctx: &CC,
-        period: ethereum_consensus::sync_protocol::SyncCommitteePeriod,
-    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        // https://github.com/ethereum/consensus-specs/blob/1b408e9354358cd7f883c170813e8bf93c922a94/specs/altair/light-client/sync-protocol.md#validate_light_client_update
-        // # Verify sync committee aggregate signature
-        // if update_signature_period == store_period:
-        //     sync_committee = store.current_sync_committee
-        // else:
-        //     sync_committee = store.next_sync_committee
-        let current_period = self.current_period(ctx);
-        if period == current_period {
-            Some(self.current_sync_committee.clone())
-        } else if period == current_period + 1 {
-            self.next_sync_committee.clone()
-        } else {
-            None
-        }
+    ) -> ethereum_consensus::sync_protocol::SyncCommitteePeriod {
+        compute_sync_committee_period_at_slot(ctx, self.current_slot())
+    }
+
+    fn current_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        Some(self.current_sync_committee.clone())
+    }
+
+    fn next_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.next_sync_committee.clone()
     }
 
     fn ensure_relevant_update<
@@ -149,8 +136,6 @@ impl<
         ctx: &CC,
         update: &C,
     ) -> Result<(), ethereum_light_client_verifier::errors::Error> {
-        update.ensure_consistent_update_period(ctx)?;
-
         let store_period = compute_sync_committee_period_at_slot(ctx, self.current_slot());
         let update_attested_period =
             compute_sync_committee_period_at_slot(ctx, update.attested_beacon_header().slot);

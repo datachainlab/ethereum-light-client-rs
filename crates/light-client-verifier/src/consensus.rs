@@ -77,6 +77,14 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
 
     /// validate a consensus update with a committee from the trusted store
     /// follow the light client protocol in the consensus spec
+    ///
+    /// If the return value is `Ok`, the update satisfies the following conditions:
+    /// * the update is valid light client update:
+    ///   * all merkle branches are valid
+    ///   * the number of committee signatures is sufficient
+    /// * the update is relevant to the store
+    /// * the signature period matches the store's current or next period
+    /// * the attested period matches the finalized period or finalized period + 1
     pub fn validate_consensus_update<
         CC: ChainConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
@@ -86,10 +94,8 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         store: &ST,
         consensus_update: &CU,
     ) -> Result<(), Error> {
-        consensus_update.validate_basic(ctx)?;
-        store.ensure_relevant_update(ctx, consensus_update)?;
-        let sync_committee = self.get_sync_committee(ctx, store, consensus_update)?;
         validate_light_client_update(ctx, store, consensus_update)?;
+        let sync_committee = self.get_sync_committee(ctx, store, consensus_update)?;
         verify_sync_committee_attestation(ctx, consensus_update, &sync_committee)?;
         Ok(())
     }
@@ -161,6 +167,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
             Ok(committee)
         } else {
             Err(Error::UnexpectedSingaturePeriod(
+                store.current_period(ctx),
                 update_signature_period,
                 "store does not have the sync committee corresponding to the update signature period"
                     .into(),
@@ -230,7 +237,7 @@ pub fn verify_sync_committee_attestation<
 
 /// validate_light_client_update validates a light client update
 ///
-/// NOTE: we can skip the validation of the attested header's execution payload here because we do not reference it in the light client protocol
+/// NOTE: we can skip the validation of the attested header's execution payload inclusion here because we do not use it in our light client implementation.
 pub fn validate_light_client_update<
     const SYNC_COMMITTEE_SIZE: usize,
     CC: ChainConsensusVerificationContext,
@@ -241,6 +248,33 @@ pub fn validate_light_client_update<
     store: &ST,
     consensus_update: &CU,
 ) -> Result<(), Error> {
+    consensus_update.validate_basic(ctx)?;
+
+    let current_period = store.current_period(ctx);
+    let signature_period =
+        compute_sync_committee_period_at_slot(ctx, consensus_update.signature_slot());
+    // ensure that the update is relevant to the store
+    // the `store`` only has the current and next sync committee, so the signature period must match the current or next period
+    if current_period != signature_period && current_period + 1 != signature_period {
+        return Err(Error::StoreNotCoveredSignaturePeriod(
+            current_period,
+            signature_period,
+        ));
+    }
+    let finalized_period =
+        compute_sync_committee_period_at_slot(ctx, consensus_update.finalized_beacon_header().slot);
+    let attested_period =
+        compute_sync_committee_period_at_slot(ctx, consensus_update.attested_beacon_header().slot);
+    // the following condition must always be false
+    if finalized_period != attested_period && finalized_period + 1 != attested_period {
+        return Err(Error::InconsistentFinalizedPeriod(
+            finalized_period,
+            attested_period,
+        ));
+    }
+
+    store.ensure_relevant_update(ctx, consensus_update)?;
+
     // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#validate_light_client_update
     // Verify that the `finality_branch`, if present, confirms `finalized_header`
     // to match the finalized checkpoint root saved in the state of `attested_header`.
@@ -958,10 +992,11 @@ mod tests {
                     .as_secs()
                     .into(),
             );
-            let period_1 = U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
+            let base_store_slot =
+                U64(1) * ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
 
             let initial_header = BeaconBlockHeader {
-                slot: period_1,
+                slot: base_store_slot,
                 ..Default::default()
             };
             let current_sync_committee = scm.get_committee(1);
@@ -970,9 +1005,10 @@ mod tests {
                 current_sync_committee.to_committee(),
                 Default::default(),
             );
-            let base_signature_slot = period_1 + 11;
-            let base_attested_slot = base_signature_slot - 1;
-            let base_finalized_epoch = base_attested_slot / ctx.slots_per_epoch();
+            let base_finalized_epoch = base_store_slot / ctx.slots_per_epoch() + 1;
+            let base_attested_slot = (base_finalized_epoch + 2) * ctx.slots_per_epoch();
+            let base_signature_slot = base_attested_slot + 1;
+
             let dummy_execution_state_root = [1u8; 32].into();
             let dummy_execution_block_number = 1;
 
@@ -1029,6 +1065,81 @@ mod tests {
                     &store,
                     &update_zero_attestations,
                 );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                //
+                //                   |
+                //    +-----------+  |  +-----------+     +-----------+     +-----------+
+                //    |   store   | <-- | finalized | <-- | attested  | <-- | signature |
+                //    +-----------+  |  +-----------+     +-----------+     +-----------+
+                //                   |
+                //                   |
+                //              sync committee
+                //              period boundary
+                //
+                let store_period =
+                    compute_sync_committee_period_at_slot(&ctx, store.latest_finalized_header.slot);
+                let next_period = store_period + 1;
+                let finalized_epoch = next_period * ctx.epochs_per_sync_committee_period();
+                let attested_slot = (finalized_epoch + 2) * ctx.slots_per_epoch();
+                let signature_slot = attested_slot + 1;
+                let update = gen_light_client_update(
+                    &ctx,
+                    signature_slot,
+                    attested_slot,
+                    finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default()
+                    .validate_consensus_update(&ctx, &store, &update);
+                assert!(res.is_err(), "{:?}", res);
+
+                let store = MockStore {
+                    next_sync_committee: Some(scm.get_committee(2).to_committee()),
+                    ..store.clone()
+                };
+                let res = SyncProtocolVerifier::default()
+                    .validate_consensus_update(&ctx, &store, &update);
+                assert!(res.is_ok(), "{:?}", res);
+            }
+            {
+                //
+                //                   |  |
+                //    +-----------+  |  |   +-----------+     +-----------+     +-----------+
+                //    |   store   | <------ | finalized | <-- | attested  | <-- | signature |
+                //    +-----------+  |  |   +-----------+     +-----------+     +-----------+
+                //                   |  |
+                //                   |  |
+                //               sync committee
+                //               period boundary
+                //
+                let store_period =
+                    compute_sync_committee_period_at_slot(&ctx, store.latest_finalized_header.slot);
+                let next_next_period = store_period + 2;
+                let finalized_epoch = next_next_period * ctx.epochs_per_sync_committee_period();
+                let attested_slot = (finalized_epoch + 2) * ctx.slots_per_epoch();
+                let signature_slot = attested_slot + 1;
+                let update = gen_light_client_update(
+                    &ctx,
+                    signature_slot,
+                    attested_slot,
+                    finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default()
+                    .validate_consensus_update(&ctx, &store, &update);
+                assert!(res.is_err(), "{:?}", res);
+                let store = MockStore {
+                    next_sync_committee: Some(scm.get_committee(2).to_committee()),
+                    ..store.clone()
+                };
+                let res = SyncProtocolVerifier::default()
+                    .validate_consensus_update(&ctx, &store, &update);
                 assert!(res.is_err(), "{:?}", res);
             }
             {
@@ -1112,13 +1223,7 @@ mod tests {
                     &store,
                     &update_invalid_inconsistent_periods,
                 );
-                assert!(res.is_err(), "{:?}", res);
-                if let Some(Error::InconsistentUpdatePeriod(a, b)) = res.as_ref().err() {
-                    assert_eq!(a, &1.into());
-                    assert_eq!(b, &2.into());
-                } else {
-                    panic!("unexpected error: {:?}", res);
-                }
+                assert!(res.is_ok(), "{:?}", res);
             }
         }
 

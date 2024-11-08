@@ -1,8 +1,6 @@
 use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationContext};
 use crate::errors::Error;
 use crate::internal_prelude::*;
-use ethereum_consensus::compute::compute_sync_committee_period_at_slot;
-use ethereum_consensus::context::ChainContext;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Slot},
     merkle::is_valid_normalized_merkle_branch,
@@ -42,21 +40,6 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
 
     fn sync_aggregate(&self) -> &SyncAggregate<SYNC_COMMITTEE_SIZE>;
     fn signature_slot(&self) -> Slot;
-
-    fn ensure_consistent_update_period<C: ChainContext>(&self, ctx: &C) -> Result<(), Error> {
-        let finalized_period =
-            compute_sync_committee_period_at_slot(ctx, self.finalized_beacon_header().slot);
-        let attested_period =
-            compute_sync_committee_period_at_slot(ctx, self.attested_beacon_header().slot);
-        if finalized_period == attested_period {
-            Ok(())
-        } else {
-            Err(Error::InconsistentUpdatePeriod(
-                finalized_period,
-                attested_period,
-            ))
-        }
-    }
 
     /// ref. https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#is_valid_light_client_header
     /// NOTE: There are no validation for the execution payload, so you should implement it if the update contains the execution payload.
