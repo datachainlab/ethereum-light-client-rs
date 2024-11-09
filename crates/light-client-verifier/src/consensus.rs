@@ -1149,6 +1149,40 @@ mod tests {
             }
             {
                 //
+                //                   |
+                //    +-----------+  |  +-----------+     +-----------+     +-----------+
+                //    | finalized | <-- |   store   | <-- | attested  | <-- | signature |
+                //    +-----------+  |  +-----------+     +-----------+     +-----------+
+                //                   |
+                //                   |
+                //              sync committee
+                //              period boundary
+                //
+                let prev_period = U64(base_store_period - 1);
+                let finalized_epoch = prev_period * ctx.epochs_per_sync_committee_period();
+                let attested_slot =
+                    (U64(base_store_period) * ctx.epochs_per_sync_committee_period() + 2)
+                        * ctx.slots_per_epoch();
+                let signature_slot = attested_slot + 1;
+                let update = gen_light_client_update(
+                    &ctx,
+                    signature_slot,
+                    attested_slot,
+                    finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    &scm,
+                );
+                let res = SyncProtocolVerifier::default()
+                    .validate_consensus_update(&ctx, &store, &update);
+                assert!(res.is_ok(), "{:?}", res);
+
+                // the store cannot apply the finalized header whose period is `store_period-1`
+                let res = store.apply_light_client_update(&ctx, &update);
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                //
                 //                                    |
                 //    +-----------+     +----------+  |  +-----------+
                 //    | finalized | <-- | attested | <-- | signature |
