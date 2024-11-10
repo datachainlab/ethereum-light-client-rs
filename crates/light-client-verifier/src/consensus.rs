@@ -154,7 +154,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
         Ok(())
     }
 
-    /// get the sync committee from the store
+    /// get the sync committee corresponding to the update signature period from the store
     pub fn get_sync_committee<CC: ChainContext, CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
         ctx: &CC,
@@ -254,7 +254,7 @@ pub fn validate_light_client_update<
     let signature_period =
         compute_sync_committee_period_at_slot(ctx, consensus_update.signature_slot());
     // ensure that the update is relevant to the store
-    // the `store`` only has the current and next sync committee, so the signature period must match the current or next period
+    // the `store` only has the current and next sync committee, so the signature period must match the current or next period
     if current_period != signature_period && current_period + 1 != signature_period {
         return Err(Error::StoreNotCoveredSignaturePeriod(
             current_period,
@@ -520,6 +520,7 @@ pub mod test_utils {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn gen_light_client_update<
         const SYNC_COMMITTEE_SIZE: usize,
         C: ChainConsensusVerificationContext,
@@ -530,6 +531,7 @@ pub mod test_utils {
         finalized_epoch: Epoch,
         execution_state_root: H256,
         execution_block_number: BlockNumber,
+        is_update_contain_next_sync_committee: bool,
         scm: &MockSyncCommitteeManager<SYNC_COMMITTEE_SIZE>,
     ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
         let signature_period = compute_sync_committee_period_at_slot(ctx, signature_slot);
@@ -543,7 +545,7 @@ pub mod test_utils {
             execution_block_number,
             scm.get_committee(signature_period.into()),
             scm.get_committee((attested_period + 1).into()),
-            true,
+            is_update_contain_next_sync_committee,
             SYNC_COMMITTEE_SIZE,
         )
     }
@@ -1027,21 +1029,50 @@ mod tests {
 
             {
                 // valid update (store_period == finalized_period == signature_period)
-                let update_valid = gen_light_client_update::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    base_finalized_epoch,
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    &scm,
-                );
+                for b in [false, true] {
+                    let update_valid = gen_light_client_update::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        b,
+                        &scm,
+                    );
+                    let res = SyncProtocolVerifier::default().validate_consensus_update(
+                        &ctx,
+                        &store,
+                        &update_valid,
+                    );
+                    assert!(res.is_ok(), "{:?}", res);
+                }
+            }
+            {
+                // valid update has no next sync committee branch (store_period == finalized_period == signature_period)
+                let update_invalid_no_next_sync_committee_branch = {
+                    let mut update = gen_light_client_update::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        true,
+                        &scm,
+                    );
+                    let (next_sync_committee, _) =
+                        update.light_client_update.next_sync_committee.unwrap();
+                    update.light_client_update.next_sync_committee =
+                        Some((next_sync_committee, vec![]));
+                    update
+                };
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
                     &store,
-                    &update_valid,
+                    &update_invalid_no_next_sync_committee_branch,
                 );
-                assert!(res.is_ok(), "{:?}", res);
+                assert!(res.is_err(), "{:?}", res);
             }
             {
                 let update_insufficient_attestations = gen_light_client_update_with_params(
@@ -1104,6 +1135,66 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
+                let mut update_invalid_finalized_header_branch = gen_light_client_update::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    true,
+                    &scm,
+                );
+                // set invalid finalized header branch
+                update_invalid_finalized_header_branch
+                    .light_client_update
+                    .finalized_header
+                    .1[2] = H256::default();
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_invalid_finalized_header_branch,
+                );
+                assert!(res.is_err(), "{:?}", res);
+
+                update_invalid_finalized_header_branch
+                    .light_client_update
+                    .finalized_header
+                    .1 = vec![];
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_invalid_finalized_header_branch,
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let mut update_invalid_finality_branch = gen_light_client_update::<32, _>(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    true,
+                    &scm,
+                );
+                update_invalid_finality_branch.finalized_execution_branch[0] = H256::default();
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_invalid_finality_branch,
+                );
+                assert!(res.is_err(), "{:?}", res);
+                update_invalid_finality_branch.finalized_execution_branch = vec![]; // empty branch
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_invalid_finality_branch,
+                );
+                assert!(res.is_err(), "{:?}", res);
+            }
+            {
                 //
                 //                   |
                 //    +-----------+  |  +-----------+     +-----------+     +-----------+
@@ -1125,6 +1216,7 @@ mod tests {
                     finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default()
@@ -1161,6 +1253,7 @@ mod tests {
                     finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default()
@@ -1200,6 +1293,7 @@ mod tests {
                     finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default()
@@ -1230,6 +1324,7 @@ mod tests {
                     base_finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1252,6 +1347,7 @@ mod tests {
                     base_finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1288,6 +1384,7 @@ mod tests {
                     base_finalized_epoch,
                     dummy_execution_state_root,
                     dummy_execution_block_number.into(),
+                    true,
                     &scm,
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
