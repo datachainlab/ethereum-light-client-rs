@@ -2,7 +2,7 @@ use crate::context::{ChainConsensusVerificationContext, ConsensusVerificationCon
 use crate::errors::Error;
 use crate::internal_prelude::*;
 use crate::misbehaviour::Misbehaviour;
-use crate::state::LightClientStoreReader;
+use crate::state::{get_sync_committee_at_period, LightClientStoreReader};
 use crate::updates::{ConsensusUpdate, ExecutionUpdate, LightClientBootstrap};
 use core::marker::PhantomData;
 use ethereum_consensus::beacon::{BeaconBlockHeader, Root, DOMAIN_SYNC_COMMITTEE};
@@ -163,7 +163,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize, ST: LightClientStoreReader<SYNC_COMMITTEE
     ) -> Result<SyncCommittee<SYNC_COMMITTEE_SIZE>, Error> {
         let update_signature_period =
             compute_sync_committee_period_at_slot(ctx, update.signature_slot());
-        if let Some(committee) = store.get_sync_committee(ctx, update_signature_period) {
+        if let Some(committee) = get_sync_committee_at_period(ctx, store, update_signature_period) {
             Ok(committee)
         } else {
             Err(Error::UnexpectedSingaturePeriod(
@@ -331,7 +331,9 @@ pub fn validate_light_client_update<
             ctx,
             consensus_update.attested_beacon_header().slot,
         );
-        if let Some(committee) = store.get_sync_committee(ctx, update_attested_period + 1) {
+        if let Some(committee) =
+            get_sync_committee_at_period(ctx, store, update_attested_period + 1)
+        {
             if committee != *update_next_sync_committee {
                 return Err(Error::InconsistentNextSyncCommittee(
                     committee.aggregate_pubkey.clone(),
