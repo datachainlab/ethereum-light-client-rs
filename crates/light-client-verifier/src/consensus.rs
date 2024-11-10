@@ -543,6 +543,7 @@ pub mod test_utils {
             execution_block_number,
             scm.get_committee(signature_period.into()),
             scm.get_committee((attested_period + 1).into()),
+            true,
             SYNC_COMMITTEE_SIZE,
         )
     }
@@ -560,6 +561,7 @@ pub mod test_utils {
         execution_block_number: BlockNumber,
         sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
         next_sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
+        is_update_contain_next_sync_committee: bool,
         sign_num: usize,
     ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
         assert!(
@@ -579,7 +581,7 @@ pub mod test_utils {
                 ctx,
                 attested_slot,
                 finalized_root,
-                sync_committee.to_committee(),
+                Default::default(),
                 next_sync_committee.to_committee(),
             );
 
@@ -605,10 +607,14 @@ pub mod test_utils {
                 attested_header,
                 sign_num,
             ),
-            next_sync_committee: Some((
-                next_sync_committee.to_committee(),
-                next_sync_committee_branch,
-            )),
+            next_sync_committee: if is_update_contain_next_sync_committee {
+                Some((
+                    next_sync_committee.to_committee(),
+                    next_sync_committee_branch,
+                ))
+            } else {
+                None
+            },
         };
 
         ConsensusUpdateInfo {
@@ -1047,6 +1053,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
+                    true,
                     21, // insufficient attestations. at least 22 is required.
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1066,6 +1073,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
+                    true,
                     22, // sufficient attestations
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1085,6 +1093,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
+                    true,
                     0, // insufficient attestations. at least 22 is required.
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1346,6 +1355,7 @@ mod tests {
                 dummy_execution_block_number.into(),
                 current_sync_committee,
                 scm.get_committee(base_store_period + 1),
+                true,
                 32,
             );
 
@@ -1359,6 +1369,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                    true,
                     32,
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
@@ -1381,6 +1392,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                    true,
                     32,
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
@@ -1403,7 +1415,8 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
-                    21,                                       // at least 22 is required
+                    true,
+                    21, // at least 22 is required
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
@@ -1427,6 +1440,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                    true,
                     32,
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
@@ -1453,6 +1467,7 @@ mod tests {
                         dummy_execution_block_number.into(),
                         current_sync_committee,
                         scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                        true,
                         32,
                     );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
@@ -1476,6 +1491,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
+                    true,
                     32,
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
@@ -1500,6 +1516,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
+                    true,
                     32,
                 );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
