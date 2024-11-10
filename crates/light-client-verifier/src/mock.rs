@@ -31,10 +31,7 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
         }
     }
 
-    pub fn current_period<CC: ChainContext>(&self, ctx: &CC) -> Slot {
-        compute_sync_committee_period_at_slot(ctx, self.latest_finalized_header.slot)
-    }
-
+    /// CONTRACT: `apply_light_client_update` must be called after `SyncProtocolVerifier::validate_consensus_update()`
     pub fn apply_light_client_update<
         CC: ChainContext + ConsensusVerificationContext,
         CU: ConsensusUpdate<SYNC_COMMITTEE_SIZE>,
@@ -46,30 +43,45 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
         let mut new_store = self.clone();
         let store_period =
             compute_sync_committee_period_at_slot(ctx, self.latest_finalized_header.slot);
-        let attested_period = compute_sync_committee_period_at_slot(
+        let finalized_period = compute_sync_committee_period_at_slot(
             ctx,
-            consensus_update.attested_beacon_header().slot,
+            consensus_update.finalized_beacon_header().slot,
         );
 
-        if store_period == attested_period {
-            if let Some(committee) = consensus_update.next_sync_committee() {
-                new_store.next_sync_committee = Some(committee.clone());
+        if store_period == finalized_period {
+            // store_period == finalized_period <= attested_period <= signature_period
+            if consensus_update.has_finalized_next_sync_committee(ctx) {
+                // finalized_period == attested_period
+                new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
             }
-        } else if store_period + 1 == attested_period {
+        } else if store_period + 1 == finalized_period {
+            // store_period + 1 == finalized_period == attested_period == signature_period
+            debug_assert_eq!(
+                compute_sync_committee_period_at_slot(
+                    ctx,
+                    consensus_update.attested_beacon_header().slot
+                ),
+                finalized_period
+            );
+            debug_assert_eq!(
+                compute_sync_committee_period_at_slot(ctx, consensus_update.signature_slot()),
+                finalized_period
+            );
+
             if let Some(committee) = self.next_sync_committee.as_ref() {
                 new_store.current_sync_committee = committee.clone();
                 new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
             } else {
                 return Err(crate::errors::Error::CannotRotateNextSyncCommittee(
                     store_period,
-                    attested_period,
+                    finalized_period,
                 ));
             }
         } else {
-            return Err(crate::errors::Error::UnexpectedAttestedPeriod(
+            return Err(crate::errors::Error::UnexpectedFinalizedPeriod(
                 store_period,
-                attested_period,
-                "attested period must be equal to store_period or store_period+1".into(),
+                finalized_period,
+                "finalized period must be equal to store_period or store_period+1".into(),
             ));
         };
         if consensus_update.finalized_beacon_header().slot > self.latest_finalized_header.slot {
@@ -86,18 +98,24 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
 impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZE>
     for MockStore<SYNC_COMMITTEE_SIZE>
 {
-    fn get_sync_committee<CC: ethereum_consensus::context::ChainContext>(
+    fn current_period<CC: ChainContext>(&self, ctx: &CC) -> Slot {
+        compute_sync_committee_period_at_slot(ctx, self.latest_finalized_header.slot)
+    }
+
+    fn current_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        Some(self.current_sync_committee.clone())
+    }
+
+    fn next_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
+        self.next_sync_committee.clone()
+    }
+
+    fn ensure_relevant_update<CC: ChainContext, C: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
         &self,
-        ctx: &CC,
-        period: ethereum_consensus::sync_protocol::SyncCommitteePeriod,
-    ) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
-        let current_period = self.current_period(ctx);
-        if period == current_period {
-            Some(self.current_sync_committee.clone())
-        } else if period == current_period + 1 {
-            self.next_sync_committee.clone()
-        } else {
-            None
-        }
+        _ctx: &CC,
+        _update: &C,
+    ) -> Result<(), crate::errors::Error> {
+        // every update is relevant
+        Ok(())
     }
 }

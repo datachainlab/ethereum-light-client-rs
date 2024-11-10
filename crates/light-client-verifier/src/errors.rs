@@ -13,12 +13,14 @@ type BoxedTrieError = Box<TrieError<primitive_types::H256, rlp::DecoderError>>;
 
 #[derive(Debug, Display)]
 pub enum Error {
-    /// unexpected signature period: `signature={0} reason={1}`
-    UnexpectedSingaturePeriod(SyncCommitteePeriod, String),
+    /// unexpected signature period: `store={0} signature={1} reason={2}`
+    UnexpectedSingaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
     /// unexpected attested period: `store={0} attested={1} reason={2}`
     UnexpectedAttestedPeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
-    /// inconsistent update period: `store={0} attested={1}`
-    InconsistentUpdatePeriod(SyncCommitteePeriod, SyncCommitteePeriod),
+    /// unexpected finalized period: `store={0} finalized={1} reason={2}`
+    UnexpectedFinalizedPeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
+    /// store does not cover the signature period: `store={0} signature={1}`
+    StoreNotCoveredSignaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod),
     /// cannot rotate to next sync committee: `store={0} finalized={1}`
     CannotRotateNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
     /// no next sync committee in store: `store_period={0} signature_period={1}`
@@ -51,6 +53,8 @@ pub enum Error {
     CommonError(ethereum_consensus::errors::Error),
     /// rlp decoder error: `{0:?}`
     RlpDecoderError(rlp::DecoderError),
+    /// the next sync committee is not finalized: `finalized={0} attested={1}`
+    NotFinalizedNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have same period: {0} != {1}
     DifferentPeriodInNextSyncCommitteeMisbehaviour(SyncCommitteePeriod, SyncCommitteePeriod),
     /// both updates of misbehaviour data must have next sync committee
