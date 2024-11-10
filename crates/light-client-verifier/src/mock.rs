@@ -50,26 +50,24 @@ impl<const SYNC_COMMITTEE_SIZE: usize> MockStore<SYNC_COMMITTEE_SIZE> {
 
         if store_period == finalized_period {
             // store_period == finalized_period <= attested_period <= signature_period
-            let attested_period = compute_sync_committee_period_at_slot(
-                ctx,
-                consensus_update.attested_beacon_header().slot,
-            );
-            if finalized_period == attested_period {
-                if consensus_update.next_sync_committee().is_some() {
-                    new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
-                }
-            } else if finalized_period + 1 == attested_period {
-                // no-op: because `consensus_update` has already validated with the `store.next_sync_committee()`
-            } else {
-                return Err(crate::errors::Error::UnexpectedAttestedPeriod(
-                    store_period,
-                    attested_period,
-                    "attested period must be equal to finalized_period or finalized_period+1"
-                        .into(),
-                ));
+            if consensus_update.has_finalized_next_sync_committee(ctx) {
+                // finalized_period == attested_period
+                new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();
             }
         } else if store_period + 1 == finalized_period {
             // store_period + 1 == finalized_period == attested_period == signature_period
+            debug_assert_eq!(
+                compute_sync_committee_period_at_slot(
+                    ctx,
+                    consensus_update.attested_beacon_header().slot
+                ),
+                finalized_period
+            );
+            debug_assert_eq!(
+                compute_sync_committee_period_at_slot(ctx, consensus_update.signature_slot()),
+                finalized_period
+            );
+
             if let Some(committee) = self.next_sync_committee.as_ref() {
                 new_store.current_sync_committee = committee.clone();
                 new_store.next_sync_committee = consensus_update.next_sync_committee().cloned();

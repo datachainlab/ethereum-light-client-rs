@@ -261,18 +261,6 @@ pub fn validate_light_client_update<
             signature_period,
         ));
     }
-    let finalized_period =
-        compute_sync_committee_period_at_slot(ctx, consensus_update.finalized_beacon_header().slot);
-    let attested_period =
-        compute_sync_committee_period_at_slot(ctx, consensus_update.attested_beacon_header().slot);
-    // the following condition must always be false
-    if finalized_period != attested_period && finalized_period + 1 != attested_period {
-        return Err(Error::InconsistentFinalizedPeriod(
-            finalized_period,
-            attested_period,
-        ));
-    }
-
     store.ensure_relevant_update(ctx, consensus_update)?;
 
     // https://github.com/ethereum/consensus-specs/blob/087e7378b44f327cdad4549304fc308613b780c3/specs/altair/light-client/sync-protocol.md#validate_light_client_update
@@ -1169,7 +1157,7 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
-                let mut update_invalid_finality_branch = gen_light_client_update::<32, _>(
+                let mut update_invalid_finalized_execution_branch = gen_light_client_update::<32, _>(
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
@@ -1179,18 +1167,19 @@ mod tests {
                     true,
                     &scm,
                 );
-                update_invalid_finality_branch.finalized_execution_branch[0] = H256::default();
+                update_invalid_finalized_execution_branch.finalized_execution_branch[0] =
+                    H256::default();
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
                     &store,
-                    &update_invalid_finality_branch,
+                    &update_invalid_finalized_execution_branch,
                 );
                 assert!(res.is_err(), "{:?}", res);
-                update_invalid_finality_branch.finalized_execution_branch = vec![]; // empty branch
+                update_invalid_finalized_execution_branch.finalized_execution_branch = vec![]; // empty branch
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
                     &store,
-                    &update_invalid_finality_branch,
+                    &update_invalid_finalized_execution_branch,
                 );
                 assert!(res.is_err(), "{:?}", res);
             }

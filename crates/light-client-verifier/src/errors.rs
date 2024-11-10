@@ -21,8 +21,6 @@ pub enum Error {
     UnexpectedFinalizedPeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
     /// store does not cover the signature period: `store={0} signature={1}`
     StoreNotCoveredSignaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod),
-    /// inconsistent attested period: `finalized={0} attested={1}`
-    InconsistentFinalizedPeriod(SyncCommitteePeriod, SyncCommitteePeriod),
     /// cannot rotate to next sync committee: `store={0} finalized={1}`
     CannotRotateNextSyncCommittee(SyncCommitteePeriod, SyncCommitteePeriod),
     /// no next sync committee in store: `store_period={0} signature_period={1}`
