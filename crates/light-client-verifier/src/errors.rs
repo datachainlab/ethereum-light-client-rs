@@ -1,7 +1,7 @@
 use crate::internal_prelude::*;
 use displaydoc::Display;
 use ethereum_consensus::{
-    beacon::{BeaconBlockHeader, Root, Slot},
+    beacon::{BeaconBlockHeader, Epoch, Root, Slot},
     bls::PublicKey,
     errors::MerkleError,
     sync_protocol::SyncCommitteePeriod,
@@ -13,6 +13,8 @@ type BoxedTrieError = Box<TrieError<primitive_types::H256, rlp::DecoderError>>;
 
 #[derive(Debug, Display)]
 pub enum Error {
+    /// the light client does not support the fork corresponding to the finalized epoch: `epoch={0}`
+    ForkNotSupported(Epoch),
     /// unexpected signature period: `store={0} signature={1} reason={2}`
     UnexpectedSingaturePeriod(SyncCommitteePeriod, SyncCommitteePeriod, String),
     /// unexpected attested period: `store={0} attested={1} reason={2}`

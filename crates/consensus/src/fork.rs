@@ -17,6 +17,11 @@ pub const GENESIS_SPEC: ForkSpec = ForkSpec {
     execution_payload_block_number_gindex: 0,
 };
 
+pub const ALTAIR_INDEX: usize = 0;
+pub const BELLATRIX_INDEX: usize = 1;
+pub const CAPELLA_INDEX: usize = 2;
+pub const DENEB_INDEX: usize = 3;
+
 /// Fork parameters for the beacon chain
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ForkParameters {
@@ -63,19 +68,32 @@ impl ForkParameters {
     /// Compute the fork version for the given epoch
     pub fn compute_fork_version(&self, epoch: Epoch) -> Version {
         self.compute_fork(epoch)
-            .map(|f| f.version)
+            .map(|(_, f)| f.version.clone())
             .unwrap_or(self.genesis_version.clone())
     }
 
     /// Compute the fork spec for the given epoch
     pub fn compute_fork_spec(&self, epoch: Epoch) -> ForkSpec {
         self.compute_fork(epoch)
-            .map(|f| f.spec)
+            .map(|(_, f)| f.spec.clone())
             .unwrap_or(GENESIS_SPEC)
     }
 
-    fn compute_fork(&self, epoch: Epoch) -> Option<ForkParameter> {
-        self.forks.iter().rev().find(|f| epoch >= f.epoch).cloned()
+    /// Returns a boolean indicating whether the given epoch is after the fork
+    pub fn is_fork(&self, epoch: Epoch, fork_index: usize) -> bool {
+        if let Some((current, _)) = self.compute_fork(epoch) {
+            current >= fork_index
+        } else {
+            false
+        }
+    }
+
+    fn compute_fork(&self, epoch: Epoch) -> Option<(usize, &ForkParameter)> {
+        self.forks
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, f)| epoch >= f.epoch)
     }
 }
 
@@ -169,6 +187,13 @@ mod tests {
         assert_eq!(params.compute_fork_version(2.into()), Version([3, 0, 0, 1]));
         assert_eq!(params.compute_fork_version(3.into()), Version([4, 0, 0, 1]));
         assert_eq!(params.compute_fork_version(4.into()), Version([4, 0, 0, 1]));
+        assert!(params.is_fork(0.into(), ALTAIR_INDEX));
+        assert!(!params.is_fork(0.into(), BELLATRIX_INDEX));
+        assert!(params.is_fork(1.into(), ALTAIR_INDEX));
+        assert!(params.is_fork(1.into(), BELLATRIX_INDEX));
+        assert!(!params.is_fork(1.into(), CAPELLA_INDEX));
+        assert!(params.is_fork(3.into(), DENEB_INDEX));
+        assert!(params.is_fork(4.into(), DENEB_INDEX));
 
         let res = ForkParameters::new(
             Version([0, 0, 0, 1]),
