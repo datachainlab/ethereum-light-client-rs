@@ -1020,6 +1020,7 @@ mod tests {
             let dummy_execution_block_number = 1;
 
             {
+                // valid update (store_period == finalized_period == signature_period)
                 let update_valid = gen_light_client_update::<32, _>(
                     &ctx,
                     base_signature_slot,
@@ -1046,7 +1047,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
-                    21,
+                    21, // insufficient attestations. at least 22 is required.
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
@@ -1054,6 +1055,25 @@ mod tests {
                     &update_insufficient_attestations,
                 );
                 assert!(res.is_err(), "{:?}", res);
+            }
+            {
+                let update_sufficient_attestations = gen_light_client_update_with_params(
+                    &ctx,
+                    base_signature_slot,
+                    base_attested_slot,
+                    base_finalized_epoch,
+                    dummy_execution_state_root,
+                    dummy_execution_block_number.into(),
+                    current_sync_committee,
+                    scm.get_committee(base_store_period + 1),
+                    22, // sufficient attestations
+                );
+                let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    &ctx,
+                    &store,
+                    &update_sufficient_attestations,
+                );
+                assert!(res.is_ok(), "{:?}", res);
             }
             {
                 let update_zero_attestations = gen_light_client_update_with_params(
@@ -1065,7 +1085,7 @@ mod tests {
                     dummy_execution_block_number.into(),
                     current_sync_committee,
                     scm.get_committee(base_store_period + 1),
-                    0,
+                    0, // insufficient attestations. at least 22 is required.
                 );
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
@@ -1252,7 +1272,7 @@ mod tests {
                     ),
                     ..store.clone()
                 };
-                let update_invalid_inconsistent_periods = gen_light_client_update::<32, _>(
+                let update_not_finalized_next_sync_committee = gen_light_client_update::<32, _>(
                     &ctx,
                     next_period_signature_slot,
                     next_period_attested_slot,
@@ -1264,9 +1284,19 @@ mod tests {
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
                     &ctx,
                     &store,
-                    &update_invalid_inconsistent_periods,
+                    &update_not_finalized_next_sync_committee,
                 );
                 assert!(res.is_ok(), "{:?}", res);
+                let res = store
+                    .apply_light_client_update(&ctx, &update_not_finalized_next_sync_committee);
+                assert!(res.is_ok(), "{:?}", res);
+                let new_store = res.unwrap().unwrap();
+                // committees not changed
+                assert_eq!(
+                    store.current_sync_committee,
+                    new_store.current_sync_committee
+                );
+                assert_eq!(store.next_sync_committee, new_store.next_sync_committee);
             }
         }
 
