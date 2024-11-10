@@ -12,7 +12,7 @@ use ethereum_consensus::compute::{
     compute_sync_committee_period_at_slot, hash_tree_root,
 };
 use ethereum_consensus::context::ChainContext;
-use ethereum_consensus::fork::ForkSpec;
+use ethereum_consensus::fork::{ForkSpec, BELLATRIX_INDEX};
 use ethereum_consensus::merkle::is_valid_normalized_merkle_branch;
 use ethereum_consensus::sync_protocol::SyncCommittee;
 use ethereum_consensus::types::H256;
@@ -249,6 +249,14 @@ pub fn validate_light_client_update<
     consensus_update: &CU,
 ) -> Result<(), Error> {
     consensus_update.validate_basic(ctx)?;
+    let finalized_epoch =
+        compute_epoch_at_slot(ctx, consensus_update.finalized_beacon_header().slot);
+    if !ctx
+        .fork_parameters()
+        .is_fork(finalized_epoch, BELLATRIX_INDEX)
+    {
+        return Err(Error::ForkNotSupported(finalized_epoch));
+    }
 
     let current_period = store.current_period(ctx);
     let signature_period =
