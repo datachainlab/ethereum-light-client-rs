@@ -109,4 +109,13 @@ impl<const SYNC_COMMITTEE_SIZE: usize> LightClientStoreReader<SYNC_COMMITTEE_SIZ
     fn next_sync_committee(&self) -> Option<SyncCommittee<SYNC_COMMITTEE_SIZE>> {
         self.next_sync_committee.clone()
     }
+
+    fn ensure_relevant_update<CC: ChainContext, C: ConsensusUpdate<SYNC_COMMITTEE_SIZE>>(
+        &self,
+        _ctx: &CC,
+        _update: &C,
+    ) -> Result<(), crate::errors::Error> {
+        // every update is relevant
+        Ok(())
+    }
 }
