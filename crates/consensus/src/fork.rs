@@ -2,6 +2,7 @@ pub mod altair;
 pub mod bellatrix;
 pub mod capella;
 pub mod deneb;
+pub mod electra;
 
 use crate::beacon::{Epoch, Slot, Version};
 use crate::errors::Error;
