@@ -379,7 +379,8 @@ pub fn verify_bls_signatures(
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils {
     use super::*;
-    use crate::updates::{ConsensusUpdateInfo, LightClientUpdate};
+    use crate::updates::{ConsensusUpdateInfo, ExecutionUpdateInfo, LightClientUpdate};
+    use ethereum_consensus::fork::deneb::prover::gen_execution_payload_field_proof;
     use ethereum_consensus::milagro_bls::{
         AggregateSignature, PublicKey as BLSPublicKey, SecretKey as BLSSecretKey,
     };
@@ -389,7 +390,7 @@ pub mod test_utils {
         bls::{aggreate_public_key, PublicKey, Signature},
         fork::deneb,
         merkle::MerkleTree,
-        preset::mainnet::DenebBeaconBlock,
+        preset::minimal::DenebBeaconBlock,
         sync_protocol::SyncAggregate,
         types::U64,
     };
@@ -531,7 +532,10 @@ pub mod test_utils {
         execution_block_number: BlockNumber,
         is_update_contain_next_sync_committee: bool,
         scm: &MockSyncCommitteeManager<SYNC_COMMITTEE_SIZE>,
-    ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
+    ) -> (
+        ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
+        ExecutionUpdateInfo,
+    ) {
         let signature_period = compute_sync_committee_period_at_slot(ctx, signature_slot);
         let attested_period = compute_sync_committee_period_at_slot(ctx, attested_slot);
         gen_light_client_update_with_params(
@@ -563,7 +567,10 @@ pub mod test_utils {
         next_sync_committee: &MockSyncCommittee<SYNC_COMMITTEE_SIZE>,
         is_update_contain_next_sync_committee: bool,
         sign_num: usize,
-    ) -> ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE> {
+    ) -> (
+        ConsensusUpdateInfo<SYNC_COMMITTEE_SIZE>,
+        ExecutionUpdateInfo,
+    ) {
         assert!(
             sign_num <= SYNC_COMMITTEE_SIZE,
             "sign_num must be less than SYNC_COMMITTEE_SIZE({})",
@@ -584,7 +591,7 @@ pub mod test_utils {
                 Default::default(),
                 next_sync_committee.to_committee(),
             );
-
+        let attested_header = attested_block.to_header();
         let (_, finalized_execution_branch) =
             ethereum_consensus::fork::deneb::prover::gen_execution_payload_proof(
                 &finalized_block.body,
@@ -595,8 +602,17 @@ pub mod test_utils {
                 .unwrap()
                 .0
                 .into();
+        let execution_payload_header = finalized_block.body.execution_payload.clone().to_header();
+        let (r, state_root_branch) =
+            gen_execution_payload_field_proof(&execution_payload_header, 2).unwrap();
+        let (_, block_number_branch) =
+            gen_execution_payload_field_proof(&execution_payload_header, 6).unwrap();
+        assert_eq!(
+            r, finalized_execution_root,
+            "r: {}, finalized_execution_root: {}",
+            r, finalized_execution_root
+        );
 
-        let attested_header = attested_block.to_header();
         let update = LightClientUpdate::<SYNC_COMMITTEE_SIZE> {
             attested_header: attested_header.clone(),
             finalized_header: (finalized_block.to_header(), finalized_checkpoint_branch),
@@ -617,11 +633,19 @@ pub mod test_utils {
             },
         };
 
-        ConsensusUpdateInfo {
-            light_client_update: update,
-            finalized_execution_root,
-            finalized_execution_branch,
-        }
+        (
+            ConsensusUpdateInfo {
+                light_client_update: update,
+                finalized_execution_root,
+                finalized_execution_branch,
+            },
+            ExecutionUpdateInfo {
+                state_root: execution_state_root,
+                state_root_branch,
+                block_number: execution_block_number,
+                block_number_branch,
+            },
+        )
     }
 
     fn compute_epoch_boundary_slot<C: ChainContext>(ctx: &C, epoch: Epoch) -> Slot {
@@ -1046,7 +1070,7 @@ mod tests {
             {
                 // valid update (store_period == finalized_period == signature_period)
                 for b in [false, true] {
-                    let update_valid = gen_light_client_update::<32, _>(
+                    let (consensus_update, execution_update) = gen_light_client_update::<32, _>(
                         &ctx,
                         base_signature_slot,
                         base_attested_slot,
@@ -1056,10 +1080,11 @@ mod tests {
                         b,
                         &scm,
                     );
-                    let res = SyncProtocolVerifier::default().validate_consensus_update(
+                    let res = SyncProtocolVerifier::default().validate_updates(
                         &ctx,
                         &store,
-                        &update_valid,
+                        &consensus_update,
+                        &execution_update,
                     );
                     assert!(res.is_ok(), "{:?}", res);
                 }
@@ -1067,7 +1092,7 @@ mod tests {
             {
                 // valid update has no next sync committee branch (store_period == finalized_period == signature_period)
                 let update_invalid_no_next_sync_committee_branch = {
-                    let mut update = gen_light_client_update::<32, _>(
+                    let (mut update, _) = gen_light_client_update::<32, _>(
                         &ctx,
                         base_signature_slot,
                         base_attested_slot,
@@ -1091,7 +1116,7 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
-                let update_insufficient_attestations = gen_light_client_update_with_params(
+                let (update_insufficient_attestations, _) = gen_light_client_update_with_params(
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
@@ -1111,7 +1136,7 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
-                let update_sufficient_attestations = gen_light_client_update_with_params(
+                let (update_sufficient_attestations, _) = gen_light_client_update_with_params(
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
@@ -1131,7 +1156,7 @@ mod tests {
                 assert!(res.is_ok(), "{:?}", res);
             }
             {
-                let update_zero_attestations = gen_light_client_update_with_params(
+                let (update_zero_attestations, _) = gen_light_client_update_with_params(
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
@@ -1151,16 +1176,17 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
-                let mut update_invalid_finalized_header_branch = gen_light_client_update::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    base_finalized_epoch,
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    true,
-                    &scm,
-                );
+                let (mut update_invalid_finalized_header_branch, _) =
+                    gen_light_client_update::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        true,
+                        &scm,
+                    );
                 // set invalid finalized header branch
                 update_invalid_finalized_header_branch
                     .light_client_update
@@ -1185,16 +1211,17 @@ mod tests {
                 assert!(res.is_err(), "{:?}", res);
             }
             {
-                let mut update_invalid_finalized_execution_branch = gen_light_client_update::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    base_finalized_epoch,
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    true,
-                    &scm,
-                );
+                let (mut update_invalid_finalized_execution_branch, _) =
+                    gen_light_client_update::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        true,
+                        &scm,
+                    );
                 update_invalid_finalized_execution_branch.finalized_execution_branch[0] =
                     H256::default();
                 let res = SyncProtocolVerifier::default().validate_consensus_update(
@@ -1226,7 +1253,7 @@ mod tests {
                 let finalized_epoch = next_period * ctx.epochs_per_sync_committee_period();
                 let attested_slot = (finalized_epoch + 2) * ctx.slots_per_epoch();
                 let signature_slot = attested_slot + 1;
-                let update = gen_light_client_update(
+                let (update, _) = gen_light_client_update(
                     &ctx,
                     signature_slot,
                     attested_slot,
@@ -1263,7 +1290,7 @@ mod tests {
                 let finalized_epoch = next_next_period * ctx.epochs_per_sync_committee_period();
                 let attested_slot = (finalized_epoch + 2) * ctx.slots_per_epoch();
                 let signature_slot = attested_slot + 1;
-                let update = gen_light_client_update(
+                let (update, _) = gen_light_client_update(
                     &ctx,
                     signature_slot,
                     attested_slot,
@@ -1303,7 +1330,7 @@ mod tests {
                     (U64(base_store_period) * ctx.epochs_per_sync_committee_period() + 2)
                         * ctx.slots_per_epoch();
                 let signature_slot = attested_slot + 1;
-                let update = gen_light_client_update(
+                let (update, _) = gen_light_client_update(
                     &ctx,
                     signature_slot,
                     attested_slot,
@@ -1334,7 +1361,7 @@ mod tests {
                 //
                 let next_period_signature_slot = base_signature_slot
                     + ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
-                let update_unknown_next_committee = gen_light_client_update::<32, _>(
+                let (update_unknown_next_committee, _) = gen_light_client_update::<32, _>(
                     &ctx,
                     next_period_signature_slot,
                     base_attested_slot,
@@ -1357,7 +1384,7 @@ mod tests {
                     ),
                     ..store.clone()
                 };
-                let update_valid = gen_light_client_update::<32, _>(
+                let (update_valid, _) = gen_light_client_update::<32, _>(
                     &ctx,
                     next_period_signature_slot,
                     base_attested_slot,
@@ -1394,7 +1421,7 @@ mod tests {
                     ),
                     ..store.clone()
                 };
-                let update_not_finalized_next_sync_committee = gen_light_client_update::<32, _>(
+                let (update_not_finalized_next_sync_committee, _) = gen_light_client_update::<32, _>(
                     &ctx,
                     next_period_signature_slot,
                     next_period_attested_slot,
@@ -1460,7 +1487,7 @@ mod tests {
             let dummy_execution_state_root = [1u8; 32].into();
             let dummy_execution_block_number = 1;
 
-            let update_1 = gen_light_client_update_with_params::<32, _>(
+            let (update_1, _) = gen_light_client_update_with_params::<32, _>(
                 &ctx,
                 base_signature_slot,
                 base_attested_slot,
@@ -1474,7 +1501,7 @@ mod tests {
             );
 
             {
-                let update_valid = gen_light_client_update_with_params::<32, _>(
+                let (update_valid, _) = gen_light_client_update_with_params::<32, _>(
                     &ctx,
                     base_signature_slot,
                     base_attested_slot,
@@ -1497,7 +1524,7 @@ mod tests {
                 assert!(res.is_ok(), "{:?}", res);
             }
             {
-                let update_valid_different_slots = gen_light_client_update_with_params::<32, _>(
+                let (update_valid_different_slots, _) = gen_light_client_update_with_params::<32, _>(
                     &ctx,
                     base_signature_slot + 1,
                     base_attested_slot + 1,
@@ -1520,18 +1547,19 @@ mod tests {
                 assert!(res.is_ok(), "{:?}", res);
             }
             {
-                let update_insufficient_attestations = gen_light_client_update_with_params::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    base_finalized_epoch,
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    current_sync_committee,
-                    scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
-                    true,
-                    21, // at least 22 is required
-                );
+                let (update_insufficient_attestations, _) =
+                    gen_light_client_update_with_params::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        current_sync_committee,
+                        scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                        true,
+                        21, // at least 22 is required
+                    );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
                     &store,
@@ -1545,18 +1573,19 @@ mod tests {
             {
                 let different_period_attested_slot = base_attested_slot
                     + ctx.slots_per_epoch() * ctx.epochs_per_sync_committee_period();
-                let update_different_attested_period = gen_light_client_update_with_params::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    different_period_attested_slot,
-                    base_finalized_epoch,
-                    dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    current_sync_committee,
-                    scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
-                    true,
-                    32,
-                );
+                let (update_different_attested_period, _) =
+                    gen_light_client_update_with_params::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        different_period_attested_slot,
+                        base_finalized_epoch,
+                        dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        current_sync_committee,
+                        scm.get_committee(base_store_period + 2), // `base_store_period+1` is really correct
+                        true,
+                        32,
+                    );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
                     &store,
@@ -1571,7 +1600,7 @@ mod tests {
                 let attested_slot = (base_finalized_epoch + ctx.epochs_per_sync_committee_period())
                     * ctx.slots_per_epoch();
                 let signature_slot = attested_slot + 1;
-                let update_not_finalized_next_sync_committee =
+                let (update_not_finalized_next_sync_committee, _) =
                     gen_light_client_update_with_params::<32, _>(
                         &ctx,
                         signature_slot,
@@ -1596,18 +1625,19 @@ mod tests {
             }
             {
                 let different_dummy_execution_state_root = [2u8; 32].into();
-                let update_different_finalized_block = gen_light_client_update_with_params::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    base_finalized_epoch,
-                    different_dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    current_sync_committee,
-                    scm.get_committee(base_store_period + 1),
-                    true,
-                    32,
-                );
+                let (update_different_finalized_block, _) =
+                    gen_light_client_update_with_params::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        base_finalized_epoch,
+                        different_dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        current_sync_committee,
+                        scm.get_committee(base_store_period + 1),
+                        true,
+                        32,
+                    );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
                     &store,
@@ -1621,18 +1651,19 @@ mod tests {
             {
                 let different_dummy_execution_state_root = [2u8; 32].into();
                 let different_finalized_epoch = base_finalized_epoch - 1;
-                let update_different_finalized_block = gen_light_client_update_with_params::<32, _>(
-                    &ctx,
-                    base_signature_slot,
-                    base_attested_slot,
-                    different_finalized_epoch,
-                    different_dummy_execution_state_root,
-                    dummy_execution_block_number.into(),
-                    current_sync_committee,
-                    scm.get_committee(base_store_period + 1),
-                    true,
-                    32,
-                );
+                let (update_different_finalized_block, _) =
+                    gen_light_client_update_with_params::<32, _>(
+                        &ctx,
+                        base_signature_slot,
+                        base_attested_slot,
+                        different_finalized_epoch,
+                        different_dummy_execution_state_root,
+                        dummy_execution_block_number.into(),
+                        current_sync_committee,
+                        scm.get_committee(base_store_period + 1),
+                        true,
+                        32,
+                    );
                 let res = SyncProtocolVerifier::default().validate_misbehaviour(
                     &ctx,
                     &store,
