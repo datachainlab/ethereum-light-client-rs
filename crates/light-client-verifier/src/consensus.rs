@@ -387,7 +387,7 @@ pub mod test_utils {
     use ethereum_consensus::ssz_rs::Vector;
     use ethereum_consensus::{
         beacon::{BlockNumber, Checkpoint, Epoch, Slot},
-        bls::{aggreate_public_key, PublicKey, Signature},
+        bls::{aggregate_public_key, PublicKey, Signature},
         fork::deneb,
         merkle::MerkleTree,
         preset::minimal::DenebBeaconBlock,
@@ -441,7 +441,7 @@ pub mod test_utils {
             for v in self.committee.iter() {
                 pubkeys.push(v.public_key());
             }
-            let aggregate_pubkey = aggreate_public_key(&pubkeys.to_vec()).unwrap();
+            let aggregate_pubkey = aggregate_public_key(&pubkeys.to_vec()).unwrap();
             SyncCommittee {
                 pubkeys: Vector::from_iter(pubkeys.into_iter().map(PublicKey::from)),
                 aggregate_pubkey: PublicKey::from(aggregate_pubkey),
@@ -855,7 +855,7 @@ mod tests {
         };
         use ethereum_consensus::{
             beacon::Version,
-            bls::aggreate_public_key,
+            bls::aggregate_public_key,
             config::{minimal, Config},
             fork::{
                 altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, ForkParameter,
@@ -897,7 +897,7 @@ mod tests {
                 .iter()
                 .map(|k| k.clone().try_into().unwrap())
                 .collect();
-            let aggregated_key = aggreate_public_key(&pubkeys).unwrap();
+            let aggregated_key = aggregate_public_key(&pubkeys).unwrap();
             let pubkey = BLSPublicKey {
                 point: aggregated_key.point,
             };

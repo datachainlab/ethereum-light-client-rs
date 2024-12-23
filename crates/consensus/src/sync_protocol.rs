@@ -1,5 +1,5 @@
 use crate::{
-    bls::{is_equal_pubkeys_and_aggreate_pub_key, PublicKey, Signature},
+    bls::{is_equal_pubkeys_and_aggregate_pub_key, PublicKey, Signature},
     errors::Error,
     internal_prelude::*,
     types::U64,
@@ -21,7 +21,7 @@ pub struct SyncCommittee<const SYNC_COMMITTEE_SIZE: usize> {
 
 impl<const SYNC_COMMITTEE_SIZE: usize> SyncCommittee<SYNC_COMMITTEE_SIZE> {
     pub fn validate(&self) -> Result<(), Error> {
-        is_equal_pubkeys_and_aggreate_pub_key(&self.pubkeys, &self.aggregate_pubkey)
+        is_equal_pubkeys_and_aggregate_pub_key(&self.pubkeys, &self.aggregate_pubkey)
     }
 }
 
