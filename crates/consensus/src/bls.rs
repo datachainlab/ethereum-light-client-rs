@@ -195,7 +195,7 @@ impl TryFrom<Signature> for BLSSignature {
     }
 }
 
-pub fn aggreate_public_key(keys: &[BLSPublicKey]) -> Result<BLSAggregatePublicKey, Error> {
+pub fn aggregate_public_key(keys: &[BLSPublicKey]) -> Result<BLSAggregatePublicKey, Error> {
     Ok(BLSAggregatePublicKey::into_aggregate(keys)?)
 }
 
@@ -204,13 +204,13 @@ pub fn fast_aggregate_verify(
     msg: H256,
     signature: BLSSignature,
 ) -> Result<bool, Error> {
-    let aggregate_pubkey = aggreate_public_key(&pubkeys)?;
+    let aggregate_pubkey = aggregate_public_key(&pubkeys)?;
     let aggregate_signature = BLSAggregateSignature::from_signature(&signature);
 
     Ok(aggregate_signature.fast_aggregate_verify_pre_aggregated(msg.as_bytes(), &aggregate_pubkey))
 }
 
-pub fn is_equal_pubkeys_and_aggreate_pub_key<const SYNC_COMMITTEE_SIZE: usize>(
+pub fn is_equal_pubkeys_and_aggregate_pub_key<const SYNC_COMMITTEE_SIZE: usize>(
     pubkeys: &Vector<PublicKey, SYNC_COMMITTEE_SIZE>,
     aggregate_pubkey: &PublicKey,
 ) -> Result<(), Error> {
@@ -218,7 +218,7 @@ pub fn is_equal_pubkeys_and_aggreate_pub_key<const SYNC_COMMITTEE_SIZE: usize>(
         .iter()
         .map(|k| k.clone().try_into().unwrap())
         .collect();
-    let agg_pubkey: PublicKey = aggreate_public_key(&pubkeys)?.into();
+    let agg_pubkey: PublicKey = aggregate_public_key(&pubkeys)?.into();
     if aggregate_pubkey == &agg_pubkey {
         Ok(())
     } else {
