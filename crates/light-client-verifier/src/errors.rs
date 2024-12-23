@@ -1,4 +1,4 @@
-use crate::internal_prelude::*;
+use crate::{context::Fraction, internal_prelude::*};
 use displaydoc::Display;
 use ethereum_consensus::{
     beacon::{BeaconBlockHeader, Epoch, Root, Slot},
@@ -91,6 +91,8 @@ pub enum Error {
     InvalidExecutionBlockNumberMerkleBranch(MerkleError),
     /// inconsistent next sync committee: `store:{0:?}` != `update:{1:?}`
     InconsistentNextSyncCommittee(PublicKey, PublicKey),
+    /// invalid fraction: `fraction={0:?}`
+    InvalidFraction(Fraction),
     /// other error: `{description}`
     Other { description: String },
 }

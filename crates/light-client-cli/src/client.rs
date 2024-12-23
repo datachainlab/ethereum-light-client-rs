@@ -70,7 +70,8 @@ impl<
             verifier: Default::default(),
             genesis_time,
             genesis_validators_root,
-            trust_level: trust_level.unwrap_or(Fraction::new(2, 3)),
+            // safe to unwrap: `2/3` is valid fraction
+            trust_level: trust_level.unwrap_or(Fraction::new(2, 3).unwrap()),
         }
     }
 

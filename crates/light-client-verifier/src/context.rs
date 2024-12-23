@@ -1,3 +1,4 @@
+use crate::errors::Error;
 use ethereum_consensus::{
     beacon::{Epoch, Root, Slot},
     compute::{compute_epoch_at_slot, compute_slot_at_timestamp},
@@ -6,18 +7,35 @@ use ethereum_consensus::{
     fork::{ForkParameters, ForkSpec},
     types::U64,
 };
+
+/// Fraction is a struct representing a fraction for a threshold.
 #[derive(Clone, Default, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Fraction {
-    pub numerator: u64,
-    pub denominator: u64,
+    numerator: u64,
+    denominator: u64,
 }
 
 impl Fraction {
-    pub fn new(numerator: u64, denominator: u64) -> Self {
-        Self {
-            numerator,
-            denominator,
+    pub fn new(numerator: u64, denominator: u64) -> Result<Self, Error> {
+        if denominator == 0 || numerator > denominator {
+            Err(Error::InvalidFraction(Self {
+                numerator,
+                denominator,
+            }))
+        } else {
+            Ok(Self {
+                numerator,
+                denominator,
+            })
         }
+    }
+
+    pub fn numerator(&self) -> u64 {
+        self.numerator
+    }
+
+    pub fn denominator(&self) -> u64 {
+        self.denominator
     }
 }
 

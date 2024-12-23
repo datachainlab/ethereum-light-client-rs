@@ -194,9 +194,9 @@ pub fn verify_sync_committee_attestation<
             participants,
             ctx.min_sync_committee_participants(),
         ));
-    } else if participants as u64 * ctx.signature_threshold().denominator
+    } else if participants as u64 * ctx.signature_threshold().denominator()
         < consensus_update.sync_aggregate().sync_committee_bits.len() as u64
-            * ctx.signature_threshold().numerator
+            * ctx.signature_threshold().numerator()
     {
         return Err(Error::InsufficientParticipants(
             participants as u64,
@@ -881,7 +881,7 @@ mod tests {
                 genesis_validators_root,
                 // NOTE: this is workaround. we must get the correct timestamp from beacon state.
                 minimal::get_config().min_genesis_time,
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 1729846322.into(),
             );
             assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
@@ -928,7 +928,7 @@ mod tests {
                 genesis_validators_root,
                 // NOTE: this is workaround. we must get the correct timestamp from beacon state.
                 minimal::get_config().min_genesis_time,
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 1729846322.into(),
             );
             assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
@@ -1039,7 +1039,7 @@ mod tests {
                 config::minimal::get_config(),
                 Default::default(),
                 Default::default(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1458,7 +1458,7 @@ mod tests {
                 config::minimal::get_config(),
                 Default::default(),
                 Default::default(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1779,7 +1779,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1806,7 +1806,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1971,7 +1971,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
