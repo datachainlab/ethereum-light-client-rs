@@ -21,7 +21,7 @@ pub enum Error {
     InvalidBLSSignatureLenght(usize, usize),
     /// invalid bls public key length: `expected={0} actual={1}`
     InvalidBLSPublicKeyLength(usize, usize),
-    /// bls aggreate public key mismatch: `{0:?} != {1:?}`
+    /// bls aggregate public key mismatch: `{0:?} != {1:?}`
     BLSAggregatePublicKeyMismatch(PublicKey, PublicKey),
     /// invalid address length: `expected={0} actual={1}`
     InvalidAddressLength(usize, usize),

@@ -77,7 +77,7 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
 
     /// validate the basic properties of the update
     fn validate_basic<C: ConsensusVerificationContext>(&self, ctx: &C) -> Result<(), Error> {
-        // ensure that sync committee's aggreated key matches pubkeys
+        // ensure that sync committee's aggregated key matches pubkeys
         if let Some(next_sync_committee) = self.next_sync_committee() {
             next_sync_committee.validate()?;
         }

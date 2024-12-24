@@ -29,8 +29,8 @@ impl<
     pub fn build(network: Network, opts: Opts) -> Result<Self, Error> {
         let home_dir = opts.home_dir();
         if !home_dir.exists() {
-            info!("directory {:?} is created", home_dir);
             std::fs::create_dir(&home_dir)?;
+            info!("directory {:?} is created", home_dir);
         }
         Ok(Self {
             config: network.config(),
@@ -49,7 +49,6 @@ impl<
     }
 
     /// Store accessors
-
     pub fn get_bootstrap(
         &self,
     ) -> Result<

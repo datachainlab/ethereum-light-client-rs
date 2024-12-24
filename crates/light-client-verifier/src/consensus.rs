@@ -194,9 +194,9 @@ pub fn verify_sync_committee_attestation<
             participants,
             ctx.min_sync_committee_participants(),
         ));
-    } else if participants as u64 * ctx.signature_threshold().denominator
+    } else if participants as u64 * ctx.signature_threshold().denominator()
         < consensus_update.sync_aggregate().sync_committee_bits.len() as u64
-            * ctx.signature_threshold().numerator
+            * ctx.signature_threshold().numerator()
     {
         return Err(Error::InsufficientParticipants(
             participants as u64,
@@ -387,7 +387,7 @@ pub mod test_utils {
     use ethereum_consensus::ssz_rs::Vector;
     use ethereum_consensus::{
         beacon::{BlockNumber, Checkpoint, Epoch, Slot},
-        bls::{aggreate_public_key, PublicKey, Signature},
+        bls::{aggregate_public_key, PublicKey, Signature},
         fork::deneb,
         merkle::MerkleTree,
         preset::minimal::DenebBeaconBlock,
@@ -441,7 +441,7 @@ pub mod test_utils {
             for v in self.committee.iter() {
                 pubkeys.push(v.public_key());
             }
-            let aggregate_pubkey = aggreate_public_key(&pubkeys.to_vec()).unwrap();
+            let aggregate_pubkey = aggregate_public_key(&pubkeys.to_vec()).unwrap();
             SyncCommittee {
                 pubkeys: Vector::from_iter(pubkeys.into_iter().map(PublicKey::from)),
                 aggregate_pubkey: PublicKey::from(aggregate_pubkey),
@@ -855,7 +855,7 @@ mod tests {
         };
         use ethereum_consensus::{
             beacon::Version,
-            bls::aggreate_public_key,
+            bls::aggregate_public_key,
             config::{minimal, Config},
             fork::{
                 altair::ALTAIR_FORK_SPEC, bellatrix::BELLATRIX_FORK_SPEC, ForkParameter,
@@ -881,7 +881,7 @@ mod tests {
                 genesis_validators_root,
                 // NOTE: this is workaround. we must get the correct timestamp from beacon state.
                 minimal::get_config().min_genesis_time,
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 1729846322.into(),
             );
             assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
@@ -897,7 +897,7 @@ mod tests {
                 .iter()
                 .map(|k| k.clone().try_into().unwrap())
                 .collect();
-            let aggregated_key = aggreate_public_key(&pubkeys).unwrap();
+            let aggregated_key = aggregate_public_key(&pubkeys).unwrap();
             let pubkey = BLSPublicKey {
                 point: aggregated_key.point,
             };
@@ -928,7 +928,7 @@ mod tests {
                 genesis_validators_root,
                 // NOTE: this is workaround. we must get the correct timestamp from beacon state.
                 minimal::get_config().min_genesis_time,
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 1729846322.into(),
             );
             assert!(verifier.validate_boostrap(&ctx, &bootstrap, None).is_ok());
@@ -1039,7 +1039,7 @@ mod tests {
                 config::minimal::get_config(),
                 Default::default(),
                 Default::default(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1458,7 +1458,7 @@ mod tests {
                 config::minimal::get_config(),
                 Default::default(),
                 Default::default(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1779,7 +1779,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1806,7 +1806,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -1971,7 +1971,7 @@ mod tests {
                         .as_ref(),
                 ),
                 1731420304.into(),
-                Fraction::new(2, 3),
+                Fraction::new(2, 3).unwrap(),
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
