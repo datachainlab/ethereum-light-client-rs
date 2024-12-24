@@ -8,7 +8,7 @@ use ethereum_consensus::beacon::Slot;
 use ethereum_consensus::sync_protocol::SyncCommitteePeriod;
 use ethereum_consensus::types::H256;
 use log::debug;
-use reqwest::{Client, StatusCode};
+use reqwest::{Client, StatusCode, Url};
 use serde::de::DeserializeOwned;
 
 type Result<T> = core::result::Result<T, Error>;
@@ -20,9 +20,25 @@ pub struct RPCClient {
 
 impl RPCClient {
     pub fn new(endpoint: impl Into<String>) -> Self {
+        let url = Url::parse(&endpoint.into()).expect("Invalid URL");
+        if url.scheme() != "http" && url.scheme() != "https" {
+            panic!("Invalid URL scheme: {}", url.scheme());
+        }
+        if url.path() != "/" {
+            panic!("Invalid URL path: {}", url.path());
+        }
+        if url.host().is_none() {
+            panic!("Invalid URL host: {}", url.host().unwrap());
+        }
+        if url.query().is_some() {
+            panic!("Invalid URL query: {}", url.query().unwrap());
+        }
+        if url.fragment().is_some() {
+            panic!("Invalid URL fragment: {}", url.fragment().unwrap());
+        }
         Self {
             http_client: reqwest::Client::new(),
-            endpoint: endpoint.into(),
+            endpoint: url.as_str().strip_suffix("/").unwrap().to_string(),
         }
     }
 
@@ -168,8 +184,8 @@ impl RPCClient {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct InternalServerError {
-    #[serde(rename = "statusCode")]
+    #[serde(alias = "statusCode", alias = "code")]
     status_code: u64,
-    error: String,
+    error: Option<String>,
     message: String,
 }
