@@ -49,7 +49,6 @@ impl<
     }
 
     /// Store accessors
-
     pub fn get_bootstrap(
         &self,
     ) -> Result<
