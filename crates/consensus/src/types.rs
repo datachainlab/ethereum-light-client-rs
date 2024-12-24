@@ -148,7 +148,7 @@ impl<'de> serde::Deserialize<'de> for U64 {
     {
         struct MyVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for MyVisitor {
+        impl serde::de::Visitor<'_> for MyVisitor {
             type Value = U64;
 
             fn expecting(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
