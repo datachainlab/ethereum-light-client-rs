@@ -3,6 +3,7 @@ pub mod bellatrix;
 pub mod capella;
 pub mod deneb;
 pub mod electra;
+pub mod gloas;
 
 use crate::beacon::{Epoch, Slot, Version};
 use crate::errors::Error;
@@ -16,12 +17,15 @@ pub const GENESIS_SPEC: ForkSpec = ForkSpec {
     execution_payload_gindex: 0,
     execution_payload_state_root_gindex: 0,
     execution_payload_block_number_gindex: 0,
+    execution_block_hash_gindex: 0,
 };
 
 pub const ALTAIR_INDEX: usize = 0;
 pub const BELLATRIX_INDEX: usize = 1;
 pub const CAPELLA_INDEX: usize = 2;
 pub const DENEB_INDEX: usize = 3;
+pub const ELECTRA_INDEX: usize = 4;
+pub const GLOAS_INDEX: usize = 5;
 
 /// Fork parameters for the beacon chain
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -113,6 +117,17 @@ pub struct ForkSpec {
     pub execution_payload_state_root_gindex: u32,
     /// get_generalized_index(ExecutionPayload, 'block_number')
     pub execution_payload_block_number_gindex: u32,
+    /// get_generalized_index(BeaconBlockBody, 'signed_execution_payload_bid', 'message', 'parent_block_hash')
+    /// This is used for Gloas and later forks where LightClientHeader contains execution_block_hash instead of ExecutionPayloadHeader
+    pub execution_block_hash_gindex: u32,
+}
+
+impl ForkSpec {
+    /// Returns true if this is Gloas or later fork
+    /// Gloas uses execution_block_hash instead of ExecutionPayloadHeader in LightClientHeader
+    pub fn is_gloas(&self) -> bool {
+        self.execution_block_hash_gindex > 0
+    }
 }
 
 /// Fork parameters for each fork

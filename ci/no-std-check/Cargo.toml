@@ -8,10 +8,10 @@ resolver = "2"
 ethereum-consensus = { path = "../../crates/consensus", default-features = false }
 ethereum-light-client-verifier = { path = "../../crates/light-client-verifier", default-features = false }
 
-sp-core = { version = "18.0.0", default-features = false, optional = true }
-sp-io = { version = "20.0.0", default-features = false, optional = true }
-sp-runtime = { version = "21.0.0", default-features = false, optional = true }
-sp-std = { version = "7.0.0", default-features = false, optional = true }
+sp-core = { version = "34.0.0", default-features = false, optional = true }
+sp-io = { version = "38.0.0", default-features = false, optional = true }
+sp-runtime = { version = "39.0.0", default-features = false, optional = true }
+sp-std = { version = "14.0.0", default-features = false, optional = true }
 
 [features]
 panic-handler = []

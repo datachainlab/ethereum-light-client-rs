@@ -59,10 +59,17 @@ pub trait ConsensusUpdate<const SYNC_COMMITTEE_SIZE: usize>:
         ctx: &C,
     ) -> Result<(), Error> {
         let spec = ctx.compute_fork_spec(self.finalized_beacon_header().slot);
+        // For Gloas and later forks, use execution_block_hash_gindex
+        // For earlier forks, use execution_payload_gindex
+        let gindex = if spec.is_gloas() {
+            spec.execution_block_hash_gindex
+        } else {
+            spec.execution_payload_gindex
+        };
         is_valid_normalized_merkle_branch(
             self.finalized_execution_root(),
             &self.finalized_execution_branch(),
-            spec.execution_payload_gindex,
+            gindex,
             self.finalized_beacon_header().body_root,
         )
         .map_err(Error::InvalidFinalizedExecutionPayload)
@@ -106,13 +113,25 @@ pub trait ExecutionUpdate: core::fmt::Debug + Clone + PartialEq + Eq {
     /// `state_root` of the execution payload
     fn state_root(&self) -> H256;
     /// merkle branch of `state_root` within `ExecutionPayload`
+    /// For Gloas+, this can be empty since verification uses RLP block header
     fn state_root_branch(&self) -> Vec<H256>;
     /// `block_number` of the execution payload
     fn block_number(&self) -> U64;
     /// merkle branch of `block_number` within `ExecutionPayload`
+    /// For Gloas+, this can be empty since verification uses RLP block header
     fn block_number_branch(&self) -> Vec<H256>;
-    /// validate the basic properties of the update
+    /// RLP-encoded execution block header (for Gloas+)
+    /// Returns non-empty bytes for Gloas+, empty for pre-Gloas
+    /// When non-empty, keccak256(rlp) must equal `ConsensusUpdate.finalized_execution_root()`
+    fn rlp(&self) -> Vec<u8> {
+        Vec::new()
+    }
+    /// validate the basic properties of the update (pre-Gloas only)
+    /// For Gloas+, validation is done in validate_execution_rlp
     fn validate_basic(&self) -> Result<(), Error> {
+        if !self.rlp().is_empty() {
+            return Ok(());
+        }
         if self.state_root_branch().is_empty() {
             return Err(Error::EmptyExecutionPayloadStateRootBranch);
         }

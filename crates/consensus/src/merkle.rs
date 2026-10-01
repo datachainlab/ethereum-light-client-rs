@@ -78,6 +78,6 @@ pub const fn get_subtree_index(gindex: u32) -> u32 {
 
 fn hash(bz: Vec<u8>) -> H256 {
     let mut output = H256::default();
-    output.0.copy_from_slice(Sha256::digest(bz).as_slice());
+    output.0.copy_from_slice(Sha256::digest(bz).as_ref());
     output
 }

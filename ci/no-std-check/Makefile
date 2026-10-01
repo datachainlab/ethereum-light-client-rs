@@ -1,4 +1,9 @@
-NIGHTLY_VERSION=nightly
+# Pinned because trie-db 0.24.0 and primitive-types 0.12.1 are future-incompatible:
+# `cargo build` warns that they "will be rejected by a future version of Rust", and
+# nightlies after the never-type inference change (rust-lang/rust#148922) do reject
+# trie-db's `.collect::<Result<_, _, _>>()`. Neither crate has a patched release in
+# its semver range, so unpin only after bumping both in light-client-verifier.
+NIGHTLY_VERSION=nightly-2026-08-12
 
 .DEFAULT_GOAL := help
 

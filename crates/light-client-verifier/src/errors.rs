@@ -89,6 +89,17 @@ pub enum Error {
     NoExecutionPayloadInBeaconBlock,
     /// invalid merkle branch of execution block number: `error={0}`
     InvalidExecutionBlockNumberMerkleBranch(MerkleError),
+    /// execution block hash mismatch: `expected={0:?} actual={1:?}`
+    ExecutionBlockHashMismatch(H256, H256),
+    /// execution state root mismatch: `header={0:?} update={1:?}`
+    ExecutionStateRootMismatch(H256, H256),
+    /// execution block number mismatch: `header={0} update={1}`
+    ExecutionBlockNumberMismatch(
+        ethereum_consensus::types::U64,
+        ethereum_consensus::types::U64,
+    ),
+    /// invalid execution block header RLP
+    InvalidExecutionBlockHeaderRlp,
     /// inconsistent next sync committee: `store:{0:?}` != `update:{1:?}`
     InconsistentNextSyncCommittee(PublicKey, PublicKey),
     /// invalid fraction: `fraction={0:?}`
