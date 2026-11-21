@@ -5,7 +5,7 @@ use crate::{
     types::U64,
 };
 use ssz_rs::prelude::{Bitvector, Vector};
-use ssz_rs::{Deserialize, Sized};
+use ssz_rs::{Deserialize, DeserializeError, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
 pub type SyncCommitteePeriod = U64;

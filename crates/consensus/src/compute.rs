@@ -85,7 +85,7 @@ pub fn compute_signing_root(header: BeaconBlockHeader, domain: Domain) -> Result
 
 /// hash_tree_root returns the hash tree root of the object
 pub fn hash_tree_root<T: ssz_rs::SimpleSerialize>(mut object: T) -> Result<Root, Error> {
-    Ok(H256::from_slice(object.hash_tree_root()?.as_bytes()))
+    Ok(H256::from_slice(object.hash_tree_root()?.as_ref()))
 }
 
 #[cfg(test)]
