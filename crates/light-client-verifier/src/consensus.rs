@@ -532,7 +532,10 @@ pub mod test_utils {
             }
             let aggregate_pubkey = aggregate_public_key(&pubkeys.to_vec()).unwrap();
             SyncCommittee {
-                pubkeys: Vector::from_iter(pubkeys.into_iter().map(PublicKey::from)),
+                pubkeys: Vector::try_from(
+                    pubkeys.into_iter().map(PublicKey::from).collect::<Vec<_>>(),
+                )
+                .unwrap(),
                 aggregate_pubkey: PublicKey::from(aggregate_pubkey),
             }
         }

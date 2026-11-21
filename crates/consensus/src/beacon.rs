@@ -3,7 +3,7 @@ use crate::{
     internal_prelude::*,
     types::{serde_hex, Address, Bytes32, H256, U64},
 };
-use ssz_rs::{Bitlist, Deserialize, List, Sized, Vector};
+use ssz_rs::{Bitlist, Deserialize, DeserializeError, List, Sized, Vector};
 use ssz_rs_derive::SimpleSerialize;
 
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#custom-types

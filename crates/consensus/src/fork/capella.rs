@@ -11,7 +11,7 @@ use crate::{
     sync_protocol::{SyncAggregate, SyncCommittee},
     types::{Address, ByteList, ByteVector, Bytes32, H256, U256, U64},
 };
-use ssz_rs::{Deserialize, List, Merkleized, Sized};
+use ssz_rs::{Deserialize, DeserializeError, List, Merkleized, Sized};
 use ssz_rs_derive::SimpleSerialize;
 
 pub const CAPELLA_FORK_SPEC: ForkSpec = bellatrix::BELLATRIX_FORK_SPEC;
@@ -212,11 +212,9 @@ impl<
             base_fee_per_gas: self.base_fee_per_gas,
             block_hash: self.block_hash,
             transactions_root: Root::from_slice(
-                self.transactions.hash_tree_root().unwrap().as_bytes(),
+                self.transactions.hash_tree_root().unwrap().as_ref(),
             ),
-            withdrawals_root: Root::from_slice(
-                self.withdrawals.hash_tree_root().unwrap().as_bytes(),
-            ),
+            withdrawals_root: Root::from_slice(self.withdrawals.hash_tree_root().unwrap().as_ref()),
         }
     }
 }
@@ -365,14 +363,14 @@ mod tests {
         let (block_root, payload_proof) = gen_execution_payload_proof(&block.body).unwrap();
         assert_eq!(
             block_root.as_bytes(),
-            block.body.hash_tree_root().unwrap().as_bytes()
+            block.body.hash_tree_root().unwrap().as_ref()
         );
 
         let payload_root = block.body.execution_payload.hash_tree_root().unwrap();
         let payload_header = block.body.execution_payload.clone().to_header();
 
         assert!(is_valid_normalized_merkle_branch(
-            H256::from_slice(payload_root.as_bytes()),
+            H256::from_slice(payload_root.as_ref()),
             &payload_proof,
             CAPELLA_FORK_SPEC.execution_payload_gindex,
             block_root
@@ -385,7 +383,7 @@ mod tests {
                 get_subtree_index(CAPELLA_FORK_SPEC.execution_payload_state_root_gindex) as usize,
             )
             .unwrap();
-            assert_eq!(root.as_bytes(), payload_root.as_bytes());
+            assert_eq!(root.as_bytes(), payload_root.as_ref());
             assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.state_root).unwrap().0.into(),
                 &proof,
@@ -400,7 +398,7 @@ mod tests {
                 get_subtree_index(CAPELLA_FORK_SPEC.execution_payload_block_number_gindex) as usize,
             )
             .unwrap();
-            assert_eq!(root.as_bytes(), payload_root.as_bytes());
+            assert_eq!(root.as_bytes(), payload_root.as_ref());
             assert!(is_valid_normalized_merkle_branch(
                 hash_tree_root(payload_header.block_number)
                     .unwrap()

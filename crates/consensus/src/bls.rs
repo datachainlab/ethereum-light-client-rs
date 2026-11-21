@@ -59,14 +59,11 @@ impl From<PublicKeyBytes> for PublicKey {
 impl TryFrom<Vec<u8>> for PublicKeyBytes {
     type Error = Error;
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        if value.len() != PUBLIC_KEY_BYTES_LEN {
-            Err(Error::InvalidBLSPublicKeyLength(
-                PUBLIC_KEY_BYTES_LEN,
-                value.len(),
-            ))
-        } else {
-            Ok(Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(value)))
-        }
+        Vector::<u8, PUBLIC_KEY_BYTES_LEN>::try_from(value)
+            .map(Self)
+            .map_err(|(value, _)| {
+                Error::InvalidBLSPublicKeyLength(PUBLIC_KEY_BYTES_LEN, value.len())
+            })
     }
 }
 
@@ -80,7 +77,7 @@ pub struct PublicKeyBytesDef(
 
 impl From<PublicKeyBytesDef> for PublicKeyBytes {
     fn from(value: PublicKeyBytesDef) -> Self {
-        Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::from_iter(value.0))
+        Self(Vector::<u8, PUBLIC_KEY_BYTES_LEN>::try_from(value.0.to_vec()).unwrap())
     }
 }
 
@@ -164,13 +161,11 @@ impl From<SignatureBytes> for Signature {
 impl TryFrom<Vec<u8>> for SignatureBytes {
     type Error = Error;
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        if value.len() != SIGNATURE_BYTES_LEN {
-            return Err(Error::InvalidBLSSignatureLenght(
-                SIGNATURE_BYTES_LEN,
-                value.len(),
-            ));
-        }
-        Ok(Self(Vector::<u8, SIGNATURE_BYTES_LEN>::from_iter(value)))
+        Vector::<u8, SIGNATURE_BYTES_LEN>::try_from(value)
+            .map(Self)
+            .map_err(|(value, _)| {
+                Error::InvalidBLSSignatureLenght(SIGNATURE_BYTES_LEN, value.len())
+            })
     }
 }
 
@@ -184,7 +179,7 @@ pub struct SignatureBytesDef(
 
 impl From<SignatureBytesDef> for SignatureBytes {
     fn from(value: SignatureBytesDef) -> Self {
-        Self(Vector::<u8, SIGNATURE_BYTES_LEN>::from_iter(value.0))
+        Self(Vector::<u8, SIGNATURE_BYTES_LEN>::try_from(value.0.to_vec()).unwrap())
     }
 }
 
